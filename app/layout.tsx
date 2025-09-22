@@ -4,6 +4,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import "../styles/_variables.scss";
 import "../styles/split-layout.scss";
+import Providers from "@/components/auth/Providers";
+import UserMenu from "@/components/auth/UserMenu";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,18 +32,24 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <Script id="theme-init" strategy="beforeInteractive">
-          {`
-            try {
-              const stored = localStorage.getItem('theme');
-              const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-              const wantDark = stored ? stored === 'dark' : prefersDark;
-              const root = document.documentElement;
-              if (wantDark) root.classList.add('dark'); else root.classList.remove('dark');
-            } catch {}
-          `}
-        </Script>
-        {children}
+        <Providers>
+          <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.75rem 1rem", borderBottom: "1px solid var(--border-color, #e5e7eb)" }}>
+            <div style={{ fontWeight: 600 }}>Lesson Builder</div>
+            <UserMenu />
+          </header>
+          <Script id="theme-init" strategy="beforeInteractive">
+            {`
+              try {
+                const stored = localStorage.getItem('theme');
+                const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                const wantDark = stored ? stored === 'dark' : prefersDark;
+                const root = document.documentElement;
+                if (wantDark) root.classList.add('dark'); else root.classList.remove('dark');
+              } catch {}
+            `}
+          </Script>
+          {children}
+        </Providers>
       </body>
     </html>
   );

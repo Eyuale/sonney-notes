@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from "react"
 import "./chat-panel.scss"
 import { IconArrowUp, IconMicrophone, IconPaperclip } from "@tabler/icons-react"
-import { tryParseBlueprint, blueprintToTiptapDoc, type TiptapDoc } from "@/lib/lesson-mapper"
+import { tryParseBlueprint, blueprintToTiptapDoc, type TiptapDoc, type LessonBlueprint } from "@/lib/lesson-mapper"
 
 export function ChatPanel({ onLessonDoc }: { onLessonDoc?: (doc: TiptapDoc) => void }) {
   const [messages, setMessages] = useState<Array<{ id: string; role: "user" | "assistant"; content: string }>>([
@@ -35,25 +35,33 @@ export function ChatPanel({ onLessonDoc }: { onLessonDoc?: (doc: TiptapDoc) => v
         body: JSON.stringify({ messages: nextMessages }),
       })
       if (!res.ok) {
+        if (res.status === 401) {
+          setError("Please sign in with Google to use the AI chat.")
+          setMessages((m) => [
+            ...m,
+            { id: crypto.randomUUID(), role: "assistant" as const, content: "You need to sign in (top-right) to chat and save lessons." },
+          ])
+          return
+        }
         const data = await res.json().catch(() => ({}))
         const errMsg = data?.error || `Request failed with status ${res.status}`
         throw new Error(errMsg)
       }
       type ChatAPIResponse =
-        | { type: "blueprint"; blueprint: { title?: string; sections: unknown[] }; chat: string }
+        | { type: "blueprint"; blueprint: LessonBlueprint; chat: string }
         | { role: "assistant"; content: string }
 
       const data: ChatAPIResponse = await res.json()
 
       if ("type" in data && data.type === "blueprint") {
         // Server provided a structured blueprint and a friendly chat summary
-        const doc = blueprintToTiptapDoc(data.blueprint as any)
+        const doc = blueprintToTiptapDoc(data.blueprint)
         onLessonDoc?.(doc)
         setMessages((m) => [
           ...m,
           { id: crypto.randomUUID(), role: "assistant" as const, content: data.chat },
         ])
-      } else {
+      } else if ("content" in data) {
         // Fallback: server returned plain assistant text; try to parse blueprint client-side
         const blueprint = tryParseBlueprint(data.content)
         if (blueprint) {
@@ -69,6 +77,12 @@ export function ChatPanel({ onLessonDoc }: { onLessonDoc?: (doc: TiptapDoc) => v
             { id: crypto.randomUUID(), role: "assistant" as const, content: data.content },
           ])
         }
+      } else {
+        // Unexpected shape; be defensive
+        setMessages((m) => [
+          ...m,
+          { id: crypto.randomUUID(), role: "assistant" as const, content: "Sorry, I couldn't understand the server response." },
+        ])
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Something went wrong"
@@ -110,7 +124,7 @@ export function ChatPanel({ onLessonDoc }: { onLessonDoc?: (doc: TiptapDoc) => v
       <div className="chat-input-bar">
         <div className="input-shell">
           <button className="icon-btn" title="Attach">
-            <IconPaperclip />
+            <IconPaperclip size={16}/>
           </button>
           <input
             value={input}
@@ -120,10 +134,10 @@ export function ChatPanel({ onLessonDoc }: { onLessonDoc?: (doc: TiptapDoc) => v
             aria-label="Chat prompt"
           />
           <button className="icon-btn" title="Voice">
-            <IconMicrophone />
+            <IconMicrophone size={16}/>
           </button>
           <button className="send-btn" onClick={send} aria-label="Send" disabled={isTyping}>
-            <IconArrowUp />
+            <IconArrowUp size={16}/>
           </button>
         </div>
         {error && (

@@ -71,3 +71,70 @@ This project includes a chat panel (`components/chat/ChatPanel.tsx`) wired to an
 
 - `components/chat/ChatPanel.tsx` – chat UI, input handling, loading and error states.
 - `app/api/chat/route.ts` – server route calling Gemini with `@google/generative-ai`.
+
+## Authentication (NextAuth) + MongoDB
+
+This project integrates Auth.js (NextAuth) with Google Sign-In and MongoDB for persisting user lessons and chat history.
+
+### New Files
+
+- `lib/auth.ts` – NextAuth configuration with Google provider and MongoDB Adapter
+- `app/api/auth/[...nextauth]/route.ts` – NextAuth route handlers (GET/POST)
+- `lib/mongodb.ts` – MongoDB client (cached for HMR)
+- `components/auth/Providers.tsx` – Client `SessionProvider`
+- `components/auth/UserMenu.tsx` – Simple Sign in/out UI
+- `types/next-auth.d.ts` – Augments `Session.user` with `id`
+
+### Environment Variables
+
+Create `.env.local` with the following values:
+
+```
+# Auth.js (NextAuth)
+AUTH_SECRET=your_long_random_string
+# NEXTAUTH_URL is recommended in some deploy contexts, e.g. Vercel
+# NEXTAUTH_URL=http://localhost:3000
+
+# Google OAuth (create credentials at https://console.cloud.google.com/apis/credentials)
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+
+# MongoDB
+MONGODB_URI=mongodb+srv://user:pass@cluster0.xxxxx.mongodb.net/?retryWrites=true&w=majority
+# Optional DB name (defaults to tiptap_app)
+# MONGODB_DB=tiptap_app
+
+# Gemini
+GOOGLE_GENERATIVE_AI_API_KEY=your_api_key_here
+# Optional
+# GEMINI_MODEL_NAME=gemini-1.5-pro
+```
+
+### Install Dependencies
+
+```
+npm install next-auth @auth/mongodb-adapter mongodb
+```
+
+### Usage Notes
+
+- The chat API `POST /api/chat` now requires an authenticated user session.
+- Use the header user menu to sign in with Google before chatting.
+- When a lesson blueprint is generated, it is stored in the `lessons` collection, and the chat exchange is stored in `chats`.
+- Plain assistant responses are also stored in `chats`.
+
+### Collections (basic shape)
+
+- `lessons`
+  - `userId: string`
+  - `blueprint: { title?: string; sections: ... }`
+  - `createdAt: Date`
+- `chats`
+  - `userId: string`
+  - `type: "blueprint" | "text"`
+  - `lessonId?: ObjectId` (when type is `blueprint`)
+  - `messages: Array<{ role: "user" | "assistant"; content: string }>`
+  - `chat?: string` (assistant summary for blueprint)
+  - `content?: string` (plain assistant message)
+  - `createdAt: Date`
+

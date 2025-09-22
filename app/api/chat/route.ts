@@ -1,5 +1,8 @@
 import { NextRequest } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { getAuthSession } from "@/lib/auth";
+import { getDb } from "@/lib/mongodb";
+import type { LessonBlueprint } from "@/lib/lesson-mapper";
 
 // Ensure you set GOOGLE_GENERATIVE_AI_API_KEY in your environment
 // For local dev: create a .env.local with: GOOGLE_GENERATIVE_AI_API_KEY=your_key_here
@@ -71,6 +74,15 @@ function tryParseJsonBlueprint(text: string): { blueprint: { title?: string; sec
 
 export async function POST(req: NextRequest) {
   try {
+    // Require authenticated user
+    const session = await getAuthSession();
+    if (!session || !session.user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    const userId = (session.user as { id?: string }).id || session.user.email || "anonymous";
     const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
     if (!apiKey) {
       return new Response(
@@ -132,17 +144,55 @@ export async function POST(req: NextRequest) {
       });
       const briefText = brief.response.text();
 
-      return new Response(
-        JSON.stringify({ type: "blueprint", blueprint, chat: briefText }),
-        { status: 200, headers: { "Content-Type": "application/json" } }
-      );
+      // Persist lesson and chat record
+      try {
+        const db = await getDb();
+        const lessons = db.collection("lessons");
+        const chats = db.collection("chats");
+        const lessonDoc = {
+          userId,
+          blueprint: blueprint as LessonBlueprint,
+          createdAt: new Date(),
+        };
+        const lessonResult = await lessons.insertOne(lessonDoc);
+        await chats.insertOne({
+          userId,
+          type: "blueprint",
+          lessonId: lessonResult.insertedId,
+          messages,
+          chat: briefText,
+          createdAt: new Date(),
+        });
+      } catch (persistErr) {
+        console.error("Failed to persist lesson/chat:", persistErr);
+      }
+
+      return new Response(JSON.stringify({ type: "blueprint", blueprint, chat: briefText }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
     // Fallback: normal assistant message
-    return new Response(
-      JSON.stringify({ role: "assistant", content: text }),
-      { status: 200, headers: { "Content-Type": "application/json" } }
-    );
+    // Persist plain assistant message chat
+    try {
+      const db = await getDb();
+      const chats = db.collection("chats");
+      await chats.insertOne({
+        userId,
+        type: "text",
+        messages,
+        content: text,
+        createdAt: new Date(),
+      });
+    } catch (persistErr) {
+      console.error("Failed to persist chat:", persistErr);
+    }
+
+    return new Response(JSON.stringify({ role: "assistant", content: text }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
   } catch (err: unknown) {
     console.error("/api/chat error", err);
     return new Response(
