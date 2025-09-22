@@ -1,0 +1,83 @@
+@use "./variables";
+
+.split-shell {
+  /* CSS variables for runtime control */
+  --chat-width: 420px;
+  --divider-width: 8px;
+
+  display: grid;
+  grid-template-columns: 1fr var(--divider-width) var(--chat-width); /* editor | divider | chat */
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  background: var(--tt-bg-color);
+}
+
+.split-left {
+  position: relative;
+  overflow: auto; /* independent scroll */
+}
+
+.split-resizer {
+  cursor: col-resize;
+  position: relative;
+  background: linear-gradient(
+    to right,
+    transparent 0,
+    color-mix(in oklab, var(--tt-border-color), black 8%) 50%,
+    transparent 100%
+  );
+}
+
+.split-resizer .handle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  translate: -50% -50%;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid var(--tt-border-color);
+  background: var(--tt-card-bg-color);
+  box-shadow: var(--tt-shadow-elevated-md);
+  display: grid;
+  place-items: center;
+}
+
+.split-resizer .handle::before {
+  content: "";
+  width: 4px;
+  height: 14px;
+  border-radius: 2px;
+  background:
+    linear-gradient(var(--tt-border-color), var(--tt-border-color)) 0 0/2px 100% no-repeat,
+    linear-gradient(var(--tt-border-color), var(--tt-border-color)) 100% 0/2px 100% no-repeat;
+}
+
+.split-right {
+  position: relative;
+  border-left: 1px solid var(--tt-border-color);
+  overflow: hidden; /* inner panel manages its own scroll */
+}
+
+/* Top-right action buttons placeholder (share/save) */
+.split-actions {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  gap: 8px;
+  z-index: 10;
+}
+
+.split-actions .chip {
+  background: #fff;
+  border: 1px solid var(--tt-border-color);
+  border-radius: 999px;
+  height: 34px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  box-shadow: 0 8px 16px rgba(0,0,0,0.08);
+  font-size: 14px;
+}

@@ -171,6 +171,17 @@
   }
 }
 
+/* Dot grid variables */
+:root {
+  --tt-grid-dot-color: rgba(20, 20, 20, 0.08);
+  --tt-grid-dot-size: 1.2px;
+  --tt-grid-gap: 12px; /* grid spacing in px */
+}
+
+.dark {
+  --tt-grid-dot-color: rgba(255, 255, 255, 0.12);
+}
+
 :root {
   /************************************************** 
       Global colors 

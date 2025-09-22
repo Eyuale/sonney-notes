@@ -1,0 +1,113 @@
+@use "../../styles/variables";
+
+.chat-panel {
+  --chat-bg: #f7e9da; /* soft beige */
+  --chat-border: color-mix(in oklab, var(--chat-bg), black 8%);
+  --chat-input-bg: #fff7ef;
+  --chat-shadow: 0 8px 16px rgba(0,0,0,0.06);
+
+  height: 100%;
+  width: 100%;
+  background: var(--chat-bg);
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--chat-border);
+}
+
+.chat-panel .chat-scroll {
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: 16px 16px 120px;
+}
+
+.chat-panel .chat-msg {
+  display: flex;
+  margin: 8px 0;
+}
+.chat-panel .chat-msg.user { justify-content: flex-end; }
+
+.chat-panel .bubble {
+  background: white;
+  color: #222;
+  border: 1px solid #eee;
+  border-radius: 16px;
+  padding: 10px 12px;
+  box-shadow: var(--chat-shadow);
+  max-width: 80%;
+}
+.chat-panel .chat-msg.assistant .bubble { background: var(--chat-input-bg); }
+
+.chat-panel .chat-input-bar {
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 16px;
+  background: linear-gradient(to top, var(--chat-bg) 75%, transparent);
+}
+
+.chat-panel .input-shell {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+  background: var(--chat-input-bg);
+  border: 1px solid var(--chat-border);
+  border-radius: 28px;
+  padding: 10px 10px 10px 12px;
+  box-shadow: var(--chat-shadow);
+}
+
+.chat-panel .input-shell input {
+  outline: none;
+  border: none;
+  background: transparent;
+  height: 22px;
+  font-size: 14px;
+  color: inherit;
+}
+
+.chat-panel .icon-btn,
+.chat-panel .send-btn {
+  appearance: none;
+  border: none;
+  background: #111;
+  color: white;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.chat-panel .icon-btn {
+  background: #111;
+  color: #fff;
+  opacity: 0.92;
+}
+
+.chat-panel .send-btn {
+  background: #111;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+/* Optional Google Material Symbols for icons */
+@import url("https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0");
+.material-symbols-rounded {
+  font-family: "Material Symbols Rounded";
+  font-weight: normal;
+  font-style: normal;
+  font-size: 20px;
+  display: inline-block;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  font-feature-settings: "liga";
+  -webkit-font-feature-settings: "liga";
+  -webkit-font-smoothing: antialiased;
+}

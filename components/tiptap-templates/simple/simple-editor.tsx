@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { EditorContent, EditorContext, useEditor } from "@tiptap/react"
+import type { Editor } from "@tiptap/core"
 
 // --- Tiptap Core Extensions ---
 import { StarterKit } from "@tiptap/starter-kit"
@@ -183,7 +184,7 @@ const MobileToolbarContent = ({
   </>
 )
 
-export function SimpleEditor() {
+export function SimpleEditor({ onEditorReady }: { onEditorReady?: (editor: Editor | null) => void }) {
   const isMobile = useIsMobile()
   const { height } = useWindowSize()
   const [mobileView, setMobileView] = React.useState<
@@ -231,6 +232,11 @@ export function SimpleEditor() {
     ],
     content,
   })
+
+  // Expose the editor to the parent when it becomes available
+  React.useEffect(() => {
+    onEditorReady?.(editor ?? null)
+  }, [editor, onEditorReady])
 
   const rect = useCursorVisibility({
     editor,
