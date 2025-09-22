@@ -70,6 +70,8 @@ import { ThemeToggle } from "@/components/tiptap-templates/simple/theme-toggle"
 
 // --- Lib ---
 import { handleImageUpload, MAX_FILE_SIZE } from "@/lib/tiptap-utils"
+import { GraphNode } from "@/components/tiptap-node/graph-node/graph-node-extension"
+import { QuizNode } from "@/components/tiptap-node/quiz-node/quiz-node-extension"
 
 // --- Styles ---
 import "@/components/tiptap-templates/simple/simple-editor.scss"
@@ -222,6 +224,8 @@ export function SimpleEditor({ onEditorReady }: { onEditorReady?: (editor: Edito
       Superscript,
       Subscript,
       Selection,
+      GraphNode,
+      QuizNode,
       ImageUploadNode.configure({
         accept: "image/*",
         maxSize: MAX_FILE_SIZE,
@@ -230,7 +234,7 @@ export function SimpleEditor({ onEditorReady }: { onEditorReady?: (editor: Edito
         onError: (error) => console.error("Upload failed:", error),
       }),
     ],
-    content,
+    // content,
   })
 
   // Expose the editor to the parent when it becomes available

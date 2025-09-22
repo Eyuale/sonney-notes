@@ -5,15 +5,16 @@ import { ChatPanel } from "@/components/chat/ChatPanel"
 import { ResizableSplit } from "@/components/layout/ResizableSplit"
 import * as React from "react"
 import type { Editor } from "@tiptap/core"
+import type { TiptapDoc } from "@/lib/lesson-mapper"
 
 export default function Home() {
   const [editor, setEditor] = React.useState<Editor | null>(null)
 
-  function handleLessonInsert(text: string) {
-    // Insert assistant lesson content at the end of the document
+  function handleLessonDocInsert(doc: TiptapDoc) {
     if (!editor) return
-    editor.commands.focus("end")
-    editor.commands.insertContent(text)
+    // Replace the entire document with the generated lesson blueprint
+    editor.commands.setContent(doc, { emitUpdate: false })
+    editor.commands.focus("start")
   }
 
   return (
@@ -27,7 +28,7 @@ export default function Home() {
           <SimpleEditor onEditorReady={setEditor} />
         </>
       }
-      right={<ChatPanel onLesson={handleLessonInsert} />}
+      right={<ChatPanel onLessonDoc={handleLessonDocInsert} />}
       defaultRightWidth={420}
       minRightWidth={360}
       maxRightWidth={560}

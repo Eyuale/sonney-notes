@@ -3,8 +3,9 @@
 import React, { useState, useRef, useEffect } from "react"
 import "./chat-panel.scss"
 import { IconArrowUp, IconMicrophone, IconPaperclip } from "@tabler/icons-react"
+import { tryParseBlueprint, blueprintToTiptapDoc, type TiptapDoc } from "@/lib/lesson-mapper"
 
-export function ChatPanel({ onLesson }: { onLesson?: (text: string) => void }) {
+export function ChatPanel({ onLessonDoc }: { onLessonDoc?: (doc: TiptapDoc) => void }) {
   const [messages, setMessages] = useState<Array<{ id: string; role: "user" | "assistant"; content: string }>>([
     { id: "m1", role: "assistant", content: "Hi! I can help you generate interactive lessons. Ask me to add a graph, quiz, or simulation to the canvas." },
   ])
@@ -38,12 +39,37 @@ export function ChatPanel({ onLesson }: { onLesson?: (text: string) => void }) {
         const errMsg = data?.error || `Request failed with status ${res.status}`
         throw new Error(errMsg)
       }
-      type ChatAPIResponse = { role: "assistant"; content: string }
+      type ChatAPIResponse =
+        | { type: "blueprint"; blueprint: { title?: string; sections: unknown[] }; chat: string }
+        | { role: "assistant"; content: string }
+
       const data: ChatAPIResponse = await res.json()
-      const assistantMsg = { id: crypto.randomUUID(), role: "assistant" as const, content: data.content }
-      setMessages((m) => [...m, assistantMsg])
-      // Forward assistant lesson content to the editor if a handler is provided
-      onLesson?.(data.content)
+
+      if ("type" in data && data.type === "blueprint") {
+        // Server provided a structured blueprint and a friendly chat summary
+        const doc = blueprintToTiptapDoc(data.blueprint as any)
+        onLessonDoc?.(doc)
+        setMessages((m) => [
+          ...m,
+          { id: crypto.randomUUID(), role: "assistant" as const, content: data.chat },
+        ])
+      } else {
+        // Fallback: server returned plain assistant text; try to parse blueprint client-side
+        const blueprint = tryParseBlueprint(data.content)
+        if (blueprint) {
+          const doc = blueprintToTiptapDoc(blueprint)
+          onLessonDoc?.(doc)
+          setMessages((m) => [
+            ...m,
+            { id: crypto.randomUUID(), role: "assistant" as const, content: "Lesson generated and added to the canvas." },
+          ])
+        } else {
+          setMessages((m) => [
+            ...m,
+            { id: crypto.randomUUID(), role: "assistant" as const, content: data.content },
+          ])
+        }
+      }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Something went wrong"
       setError(msg)
