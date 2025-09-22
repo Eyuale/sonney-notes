@@ -111,3 +111,79 @@
   -webkit-font-feature-settings: "liga";
   -webkit-font-smoothing: antialiased;
 }
+
+/* Header and History Drawer */
+.chat-panel .chat-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px 0 12px;
+}
+
+.chat-panel .chat-header .spacer {
+  flex: 1 1 auto;
+}
+
+.chat-panel .chip {
+  appearance: none;
+  border: 1px solid var(--chat-border);
+  background: #fff;
+  color: #111;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  box-shadow: var(--chat-shadow);
+}
+
+.chat-panel .chat-history-drawer {
+  margin: 8px 12px 0 12px;
+  background: var(--chat-input-bg);
+  border: 1px solid var(--chat-border);
+  border-radius: 12px;
+  box-shadow: var(--chat-shadow);
+  padding: 8px;
+}
+
+.chat-panel .chat-history-drawer .drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.chat-panel .chat-history-drawer .drawer-list {
+  display: grid;
+  gap: 6px;
+  max-height: 180px;
+  overflow: auto;
+}
+
+.chat-panel .chat-history-drawer .drawer-item {
+  text-align: left;
+  background: #fff;
+  border: 1px solid var(--chat-border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+.chat-panel .chat-history-drawer .drawer-item.active {
+  outline: 2px solid #111;
+}
+
+.chat-panel .chat-history-drawer .drawer-item .title-line {
+  font-size: 13px;
+  color: #111;
+}
+
+.chat-panel .chat-history-drawer .drawer-item .meta-line {
+  font-size: 11px;
+  color: #666;
+}
+
+.chat-panel .chat-history-drawer .empty {
+  font-size: 12px;
+  color: #666;
+  padding: 10px;
+}
