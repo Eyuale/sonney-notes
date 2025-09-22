@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from "react"
 import "./chat-panel.scss"
 import { IconArrowUp, IconMicrophone, IconPaperclip } from "@tabler/icons-react"
 import { tryParseBlueprint, blueprintToTiptapDoc, type TiptapDoc, type LessonBlueprint } from "@/lib/lesson-mapper"
+import AssistantMessage from "./AssistantMessage"
 
 export function ChatPanel({ onLessonDoc }: { onLessonDoc?: (doc: TiptapDoc) => void }) {
   type ChatMsg = { id: string; role: "user" | "assistant"; content: string }
@@ -96,6 +97,9 @@ export function ChatPanel({ onLessonDoc }: { onLessonDoc?: (doc: TiptapDoc) => v
     setMessages([initialGreeting])
     setInput("")
     setCurrentChatId(null)
+    // Clear the canvas/editor by sending an empty Tiptap document
+    const emptyDoc: TiptapDoc = { type: "doc", content: [{ type: "paragraph" }] }
+    onLessonDoc?.(emptyDoc)
   }
 
   async function send() {
@@ -256,6 +260,14 @@ export function ChatPanel({ onLessonDoc }: { onLessonDoc?: (doc: TiptapDoc) => v
     }
   }
 
+  // When clicking a history card, open the chat and, if present, load the lesson onto the canvas
+  async function openChatAndMaybeLesson(item: ChatListItem) {
+    await loadChat(item.id)
+    if (item.lessonId) {
+      await openLesson(item.lessonId)
+    }
+  }
+
   return (
     <aside className="chat-panel" aria-label="AI chat panel">
       <div className="chat-header">
@@ -300,7 +312,7 @@ export function ChatPanel({ onLessonDoc }: { onLessonDoc?: (doc: TiptapDoc) => v
                     <>
                       <button
                         className="row-main"
-                        onClick={() => loadChat(item.id)}
+                        onClick={() => openChatAndMaybeLesson(item)}
                         disabled={chatLoading}
                         title={item.chat}
                       >
@@ -312,9 +324,6 @@ export function ChatPanel({ onLessonDoc }: { onLessonDoc?: (doc: TiptapDoc) => v
                         )}
                       </button>
                       <div className="row-actions">
-                        {item.lessonId && (
-                          <button className="chip" onClick={() => openLesson(item.lessonId!)}>open lesson</button>
-                        )}
                         <button className="chip" onClick={() => startRename(item)}>rename</button>
                         <button className="chip" onClick={() => deleteChat(item.id)} disabled={isDeleting}>
                           {isDeleting ? "deleting…" : "delete"}
@@ -335,7 +344,13 @@ export function ChatPanel({ onLessonDoc }: { onLessonDoc?: (doc: TiptapDoc) => v
       <div className="chat-scroll">
         {messages.map((m) => (
           <div key={m.id} className={`chat-msg ${m.role}`}>
-            <div className="bubble">{m.content}</div>
+            <div className="bubble">
+              {m.role === "assistant" ? (
+                <AssistantMessage content={m.content} />
+              ) : (
+                m.content
+              )}
+            </div>
           </div>
         ))}
         {isTyping && (

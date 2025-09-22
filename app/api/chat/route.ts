@@ -9,7 +9,7 @@ import type { LessonBlueprint } from "@/lib/lesson-mapper";
 
 const MODEL_NAME = process.env.GEMINI_MODEL_NAME || "gemini-1.5-pro";
 
-// Instruction to prefer structured JSON blueprints for lessons
+// Instruction to prefer structured JSON blueprints for lessons and Markdown for general answers
 const systemInstruction = `
 You are an assistant embedded in a lesson builder app.
 
@@ -48,7 +48,13 @@ Example of valid output (no extra text before or after):
   ]
 }
 
-If the user asks a general question not related to generating a lesson, answer concisely in plain text.
+If the user asks a general question not related to generating a lesson, answer concisely in Markdown.
+Prefer the following when appropriate:
+- Use headings (#, ##) for sections.
+- Use bold (**) for key terms.
+- Use unordered/ordered lists for steps or items.
+- Use backticked code for inline code and fenced blocks for multi-line code.
+- Avoid surrounding the entire answer in a code fence unless it is code.
 `;
 
 // Minimal server-side blueprint parser (no imports from client libs)
