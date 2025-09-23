@@ -270,6 +270,7 @@ export function ChatPanel({ onLessonDoc }: { onLessonDoc?: (doc: TiptapDoc) => v
 
   return (
     <aside className="chat-panel" aria-label="AI chat panel">
+      <div className="chat-card">
       <div className="chat-header">
         <button className="chip" onClick={() => setHistoryOpen((v) => !v)} aria-expanded={historyOpen}>
           history
@@ -385,6 +386,7 @@ export function ChatPanel({ onLessonDoc }: { onLessonDoc?: (doc: TiptapDoc) => v
             {error}
           </div>
         )}
+      </div>
       </div>
     </aside>
   )
