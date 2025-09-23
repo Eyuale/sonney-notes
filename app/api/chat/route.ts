@@ -58,7 +58,9 @@ Prefer the following when appropriate:
 `;
 
 // Minimal server-side blueprint parser (no imports from client libs)
-function tryParseJsonBlueprint(text: string): { blueprint: { title?: string; sections: unknown[] } | null } {
+function tryParseJsonBlueprint(text: string): {
+  blueprint: { title?: string; sections: unknown[] } | null;
+} {
   if (!text) return { blueprint: null };
   const trimmed = text.trim();
   const fenceMatch = trimmed.match(/```(?:json)?\n([\s\S]*?)```/i);
@@ -88,11 +90,14 @@ export async function POST(req: NextRequest) {
         headers: { "Content-Type": "application/json" },
       });
     }
-    const userId = (session.user as { id?: string }).id || session.user.email || "anonymous";
+    const userId =
+      (session.user as { id?: string }).id || session.user.email || "anonymous";
     const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
     if (!apiKey) {
       return new Response(
-        JSON.stringify({ error: "Missing GOOGLE_GENERATIVE_AI_API_KEY env var." }),
+        JSON.stringify({
+          error: "Missing GOOGLE_GENERATIVE_AI_API_KEY env var.",
+        }),
         { status: 500, headers: { "Content-Type": "application/json" } }
       );
     }
@@ -100,30 +105,37 @@ export async function POST(req: NextRequest) {
     const { messages } = await req.json();
     if (!Array.isArray(messages)) {
       return new Response(
-        JSON.stringify({ error: "Invalid payload: expected { messages: Array }" }),
+        JSON.stringify({
+          error: "Invalid payload: expected { messages: Array }",
+        }),
         { status: 400, headers: { "Content-Type": "application/json" } }
       );
     }
 
     // Shape and split our chat into history (prior turns) and the last user prompt
-    type ChatMessage = { id?: string; role: "user" | "assistant"; content: string };
+    type ChatMessage = {
+      id?: string;
+      role: "user" | "assistant";
+      content: string;
+    };
     const msgs = messages as ChatMessage[];
     const last = msgs[msgs.length - 1];
     const prompt = last?.content ?? "";
 
     // Map only prior messages to Gemini roles
-    const history = msgs
-      .slice(0, -1)
-      .map((m) => ({
-        role: m.role === "assistant" ? "model" : "user",
-        parts: [{ text: String(m.content ?? "") }],
-      }));
+    const history = msgs.slice(0, -1).map((m) => ({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: [{ text: String(m.content ?? "") }],
+    }));
 
     // Ensure history starts with a user role per Gemini requirement
     while (history.length && history[0].role !== "user") history.shift();
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: MODEL_NAME, systemInstruction });
+    const model = genAI.getGenerativeModel({
+      model: MODEL_NAME,
+      systemInstruction,
+    });
 
     // Start chat with sanitized history and send the last user content as the prompt
     const chat = model.startChat({ history });
@@ -142,7 +154,9 @@ export async function POST(req: NextRequest) {
             role: "user",
             parts: [
               {
-                text: `Provide a concise, friendly 1-3 sentence introduction for this lesson for the chat panel. Do not include JSON or code blocks.\n\nTitle: ${blueprint.title ?? "Lesson"}`,
+                text: `Provide a concise, friendly 1-3 sentence introduction for this lesson for the chat panel. Do not include JSON or code blocks.\n\nTitle: ${
+                  blueprint.title ?? "Lesson"
+                }`,
               },
             ],
           },
@@ -173,10 +187,13 @@ export async function POST(req: NextRequest) {
         console.error("Failed to persist lesson/chat:", persistErr);
       }
 
-      return new Response(JSON.stringify({ type: "blueprint", blueprint, chat: briefText }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ type: "blueprint", blueprint, chat: briefText }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
     }
 
     // Fallback: normal assistant message
@@ -202,7 +219,9 @@ export async function POST(req: NextRequest) {
   } catch (err: unknown) {
     console.error("/api/chat error", err);
     return new Response(
-      JSON.stringify({ error: err instanceof Error ? err.message : "Unknown error" }),
+      JSON.stringify({
+        error: err instanceof Error ? err.message : "Unknown error",
+      }),
       { status: 500, headers: { "Content-Type": "application/json" } }
     );
   }
