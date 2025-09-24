@@ -8,20 +8,20 @@
 */
 
 .chat-panel {
-  /* Scene background */
-  --bg-start: #5aa1ff;         /* sky blue */
-  --bg-end: #7b5cff;           /* purple */
+  /* Scene background - use primary color and a gentle tint */
+  --bg-start: color-mix(in oklab, var(--color-primary) 70%, white 30%);
+  --bg-end: color-mix(in oklab, var(--color-primary) 30%, var(--md-ref-palette-secondary) 70%);
   --bg-radial: 260 70% 94%;    /* light highlight */
 
-  /* Surfaces */
-  --surface: rgba(255, 255, 255, 0.18);
-  --surface-strong: rgba(255, 255, 255, 0.28);
-  --stroke: rgba(255, 255, 255, 0.35);
-  --shadow: 0 8px 24px rgba(21, 17, 45, 0.22);
-  --inner-light: 0 1px 0 rgba(255,255,255,0.35) inset;
+  /* Surfaces mapped to Material tokens */
+  --surface: var(--card-bg);
+  --surface-strong: color-mix(in oklab, var(--card-bg) 82%, var(--color-primary) 18%);
+  --stroke: var(--card-border);
+  --shadow: var(--tt-shadow-elevated-md);
+  --inner-light: 0 1px 0 rgba(255,255,255,0.06) inset;
 
-  --text: #0d1223;
-  --muted: #3b4565;
+  --text: var(--md-ref-palette-on-surface, #0d1223);
+  --muted: var(--tt-color-text-gray, #6b7280);
 
   height: 100%;
   width: 100%;
@@ -32,7 +32,7 @@
   background:
     radial-gradient(60% 60% at 80% 10%, hsl(var(--bg-radial) / 0.9), transparent 60%),
     radial-gradient(60% 60% at 10% 90%, rgba(255,255,255,0.5), transparent 55%),
-    linear-gradient(160deg, var(--bg-start), var(--bg-end));
+  linear-gradient(160deg, var(--bg-start), var(--bg-end));
 }
 
 /* The frosted card that contains the chat UI */
@@ -83,21 +83,34 @@
   left: 0;
   right: 0;
   padding: 16px;
-  background: linear-gradient(to top, rgba(255,255,255,0.12), transparent 60%);
+  background: linear-gradient(to top, color-mix(in oklab, var(--card-bg) 85%, var(--color-primary) 15% / 0.12), transparent 60%);
 }
 
 .chat-panel .input-shell {
-  display: grid;
-  grid-template-columns: auto 1fr auto auto;
-  gap: 8px;
-  align-items: center;
-  background: rgba(255,255,255,0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 16px 0;
+  align-items: start;
+  background: color-mix(in oklab, var(--card-bg) 82%, var(--color-primary) 8% / 0.12);
   border: 1px solid var(--stroke);
   border-radius: 14px;
   padding: 12px;
   box-shadow: var(--shadow);
   -webkit-backdrop-filter: blur(14px);
   backdrop-filter: blur(14px);
+}
+
+.chat-panel .chat-panel-input-button-groups {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.chat-panel .chat-panel-input-button-groups .senders {
+  display: flex;
+  align-items: center;
+  gap:0px 8px;
 }
 
 .chat-panel .input-shell input {
@@ -113,8 +126,8 @@
 .chat-panel .send-btn {
   appearance: none;
   border: none;
-  background: rgba(255,255,255,0.35);
-  color: #0e1a4a;
+  background: color-mix(in oklab, var(--card-bg) 80%, var(--color-primary) 20% / 0.12);
+  color: var(--md-ref-palette-on-primary, #0e1a4a);
   width: 36px;
   height: 36px;
   border-radius: 10px;
@@ -126,15 +139,23 @@
 }
 
 .chat-panel .icon-btn {
-  background: rgba(255,255,255,0.35);
-  color: #0e1a4a;
+  background: color-mix(in oklab, var(--card-bg) 85%, var(--color-primary) 15% / 0.08);
+  /* Use primary for icon glyph so it is visible on light surfaces */
+  color: var(--color-primary, var(--md-ref-palette-primary));
+}
+
+/* Ensure SVG icon glyphs inherit the color from their button */
+.chat-panel .icon-btn svg,
+.chat-panel .icon-btn > svg {
+  fill: currentColor;
+  stroke: currentColor;
 }
 
 .chat-panel .send-btn {
-  background: #3b66ff;
-  color: #fff;
-  border-color: color-mix(in oklab, #3b66ff, white 30%);
-  box-shadow: 0 6px 14px rgba(59, 102, 255, 0.35);
+  background: var(--color-primary);
+  color: var(--color-on-primary, #fff);
+  border-color: color-mix(in oklab, var(--color-primary) 80%, white 20%);
+  box-shadow: 0 6px 14px color-mix(in oklab, var(--color-primary) 70%, transparent 30% / 0.35);
 }
 
 /* Optional Google Material Symbols for icons */
@@ -213,7 +234,7 @@
   cursor: pointer;
 }
 
-.chat-panel .chat-history-drawer .drawer-item.active { outline: 2px solid rgba(59,102,255,0.7); }
+.chat-panel .chat-history-drawer .drawer-item.active { outline: 2px solid color-mix(in oklab, var(--color-primary) 80%, white 20% / 0.7); }
 
 .chat-panel .chat-history-drawer .drawer-item .title-line {
   font-size: 13px;

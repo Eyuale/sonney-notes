@@ -52,14 +52,56 @@ const Graph: FC<GraphProps> = ({
     }
 
     try {
-      // Create a MathJS instance and add aliases (e.g., ln)
+      // Create a MathJS instance and add aliases (e.g., ln). Also register a
+      // safe `piecewise` function so expressions coming from users can use
+      // piecewise(...) without crashing the graph renderer.
       const math = create(all, {});
-      math.import({
-        ln: (x: number) => math.log(x),
-      }, { override: true });
+      math.import(
+        {
+          ln: (x: number) => math.log(x),
+          // piecewise can be used as piecewise([[cond1, expr1], [cond2, expr2], ...], default)
+          // or piecewise(cond1, expr1, cond2, expr2, ..., default)
+          piecewise: function (...args: unknown[]) {
+            // Normalize into pairs
+            let pairs: Array<[unknown, unknown]> = [];
+            let defaultVal: unknown = undefined;
+            if (args.length === 1 && Array.isArray(args[0])) {
+              // Single array argument: either array of pairs
+              const first = args[0] as unknown[];
+              if (Array.isArray(first[0]) || (first[0] && typeof first[0] === 'object')) {
+                pairs = first as Array<[unknown, unknown]>;
+              }
+            } else {
+              // Flatten args into pairs
+              for (let i = 0; i < args.length; i += 2) {
+                const cond = args[i];
+                const expr = args[i + 1];
+                if (i + 1 >= args.length) {
+                  defaultVal = cond;
+                  break;
+                }
+                pairs.push([cond, expr]);
+              }
+            }
+
+            for (const [cond, expr] of pairs) {
+              // If cond is truthy, evaluate and return expr
+              if (cond) {
+                try {
+                  return typeof expr === 'function' ? (expr as (...a: unknown[]) => unknown)() : expr;
+                } catch {
+                  return undefined;
+                }
+              }
+            }
+            return defaultVal;
+          },
+        },
+        { override: true }
+      );
 
       // Compile the expression once for efficiency
-      const code = math.compile(expression);
+  const code = math.compile(expression);
       const points: Point[] = [];
       // If expression uses log/ln, ensure xMin > 0 to avoid invalid values
       const usesLog = /\b(log|ln)\s*\(/i.test(expression);
@@ -71,7 +113,26 @@ const Graph: FC<GraphProps> = ({
       for (let i = 0; i <= samples; i++) {
         const x = xMin + i * step;
         const scope = { ...paramValues, x };
-        const y = code.evaluate(scope);
+        let y = code.evaluate(scope);
+        // mathjs may return BigNumber, Complex, or other wrappers. Try to coerce to number.
+        try {
+          if (y && typeof y.toNumber === 'function') {
+            y = y.toNumber();
+          } else if (y && typeof y.re === 'number' && typeof y.im === 'number') {
+            // Complex: skip non-zero imaginary parts
+            if (Math.abs(y.im) > 1e-12) {
+              continue;
+            }
+            y = y.re;
+          } else if (typeof y === 'boolean') {
+            y = y ? 1 : 0;
+          } else {
+            y = Number(y);
+          }
+        } catch {
+          // fallback: skip this point
+          continue;
+        }
 
         // Ensure y is a valid number before adding
         if (typeof y === 'number' && isFinite(y)) {

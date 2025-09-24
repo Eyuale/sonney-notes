@@ -1,8 +1,19 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Light mode mapped to Material 3 expressive blue */
+  --background: var(--md-ref-palette-background, #ffffff);
+  --foreground: var(--md-ref-palette-on-surface, #1A1C1E);
+
+  --color-primary: var(--md-ref-palette-primary);
+  --color-on-primary: var(--md-ref-palette-on-primary);
+  --color-primary-container: var(--md-ref-palette-primary-container);
+  --color-on-primary-container: var(--md-ref-palette-on-primary-container);
+
+  --card-bg: var(--md-ref-palette-surface, #ffffff);
+  --card-border: var(--md-ref-palette-outline, #9AA6C1);
+  --cursor-color: var(--md-ref-palette-primary, #0B57D0);
+  --selection-color: rgba(11, 87, 208, 0.12);
 }
 
 @theme inline {
@@ -13,8 +24,19 @@
 }
 
 .dark {
-  --background: #0a0a0a;
-  --foreground: #ededed;
+  /* Dark mode mapped to Material 3 expressive blue (dark tokens) */
+  --background: var(--md-ref-palette-background-dark, #0A0F1A);
+  --foreground: var(--md-ref-palette-on-surface-dark, #E6EEF9);
+
+  --color-primary: var(--md-ref-palette-primary-dark);
+  --color-on-primary: var(--md-ref-palette-on-primary-dark);
+  --color-primary-container: var(--md-ref-palette-primary-container-dark);
+  --color-on-primary-container: var(--md-ref-palette-on-primary-container-dark);
+
+  --card-bg: var(--md-ref-palette-surface-dark, #0F1720);
+  --card-border: var(--md-ref-palette-outline-dark, #46607A);
+  --cursor-color: var(--md-ref-palette-primary-dark, #9CC6FF);
+  --selection-color: rgba(156, 198, 255, 0.12);
 }
 
 /* Keep the media query as a fallback */

@@ -76,8 +76,6 @@ import { QuizNode } from "@/components/tiptap-node/quiz-node/quiz-node-extension
 // --- Styles ---
 import "@/components/tiptap-templates/simple/simple-editor.scss"
 
-import content from "@/components/tiptap-templates/simple/data/content.json"
-
 const MainToolbarContent = ({
   onHighlighterClick,
   onLinkClick,
@@ -278,6 +276,8 @@ export function SimpleEditor({ onEditorReady }: { onEditorReady?: (editor: Edito
               onBack={() => setMobileView("main")}
             />
           )}
+
+          
         </Toolbar>
 
         <EditorContent
