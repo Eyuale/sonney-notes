@@ -21,10 +21,6 @@ export default function Home() {
     <ResizableSplit
       left={
         <>
-          <div className="split-actions">
-            <button className="chip" title="Share">share</button>
-            <button className="chip" title="Save">save</button>
-          </div>
           <SimpleEditor onEditorReady={setEditor} />
         </>
       }

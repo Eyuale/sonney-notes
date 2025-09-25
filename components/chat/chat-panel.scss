@@ -144,13 +144,6 @@
   color: var(--color-primary, var(--md-ref-palette-primary));
 }
 
-/* Ensure SVG icon glyphs inherit the color from their button */
-.chat-panel .icon-btn svg,
-.chat-panel .icon-btn > svg {
-  fill: currentColor;
-  stroke: currentColor;
-}
-
 .chat-panel .send-btn {
   background: var(--color-primary);
   color: var(--color-on-primary, #fff);
