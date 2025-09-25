@@ -13,7 +13,7 @@ type ChatDbDoc = {
   messages?: Array<{ role: "user" | "assistant"; content: string; id?: string }>
 }
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, context: any) {
   try {
     const session = await getAuthSession();
     if (!session || !session.user) {
@@ -24,7 +24,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     }
     const userId = (session.user as { id?: string }).id || session.user.email || "anonymous";
 
-    const { id } = params;
+  const { id } = context.params as { id: string };
     if (!id || !ObjectId.isValid(id)) {
       return new Response(JSON.stringify({ error: "Invalid id" }), {
         status: 400,
@@ -65,7 +65,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   }
 }
 
-export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(_req: Request, context: any) {
   try {
     const session = await getAuthSession();
     if (!session || !session.user) {
@@ -76,7 +76,7 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
     }
     const userId = (session.user as { id?: string }).id || session.user.email || "anonymous";
 
-    const { id } = params;
+  const { id } = context.params as { id: string };
     if (!id || !ObjectId.isValid(id)) {
       return new Response(JSON.stringify({ error: "Invalid id" }), {
         status: 400,
@@ -104,7 +104,7 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
   }
 }
 
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+export async function GET(_req: Request, context: any) {
   try {
     const session = await getAuthSession();
     if (!session || !session.user) {
@@ -115,7 +115,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     }
     const userId = (session.user as { id?: string }).id || session.user.email || "anonymous";
 
-    const { id } = params;
+  const { id } = context.params as { id: string };
     if (!id || !ObjectId.isValid(id)) {
       return new Response(JSON.stringify({ error: "Invalid id" }), {
         status: 400,

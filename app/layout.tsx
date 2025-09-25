@@ -40,7 +40,18 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} ${ibmPlexSans.variable} antialiased`}
       >
         <Providers>
-          <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.75rem 1rem", borderBottom: "1px solid var(--border-color, #e5e7eb)" }}>
+          <header
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              padding: "0.75rem 1rem",
+              borderBottom: "1px solid var(--tt-border-color, #e5e7eb)",
+              background: "var(--tt-sidebar-bg-color, var(--background))",
+              color: "var(--tt-header-foreground, var(--foreground, #1A1C1E))",
+              zIndex: 10,
+            }}
+          >
             <div style={{ fontWeight: 600 }}>Lesson Builder</div>
             <UserMenu />
           </header>

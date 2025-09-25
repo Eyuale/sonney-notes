@@ -7,7 +7,7 @@ export default function UserMenu() {
   const { data: session, status } = useSession()
 
   if (status === "loading") {
-    return <div style={{ opacity: 0.6 }}>Loading…</div>
+    return <div style={{ opacity: 0.6, color: 'inherit' }}>Loading…</div>
   }
 
   if (!session) {
@@ -16,10 +16,10 @@ export default function UserMenu() {
     )
   }
 
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-      <span style={{ fontSize: 14 }}>Hi, {session.user?.name || session.user?.email}</span>
-      <button onClick={() => signOut()}>Sign out</button>
+    return (
+    <div style={{ display: "flex", alignItems: "center", gap: 12, color: 'inherit' }}>
+      <span style={{ fontSize: 14, color: 'inherit' }}>Hi, {session.user?.name || session.user?.email}</span>
+      <button style={{ color: 'inherit' }} onClick={() => signOut()}>Sign out</button>
     </div>
   )
 }

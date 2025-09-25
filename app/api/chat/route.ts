@@ -113,66 +113,6 @@ export async function POST(req: NextRequest) {
       );
     }
     const atts = Array.isArray(attachments) ? attachments : [];
-
-    // Attempt to extract text from PDF attachments if we have an S3 objectKey
-  let pdfParseModule: ((data: Buffer | Uint8Array | string) => Promise<unknown>) | null = null;
-  let pdfExtractionEnabled = true;
-  let pdfExtractionAttempted = false;
-    for (const a of atts) {
-      try {
-        const contentType = typeof a?.contentType === "string" ? a.contentType : "";
-        const hasText = typeof a?.textContent === "string" && a.textContent.length > 0;
-        if (!hasText && contentType.includes("pdf") && typeof a?.objectKey === "string" && a.objectKey.length > 0) {
-          // If extraction has been disabled previously, skip
-          if (!pdfExtractionEnabled) continue;
-          // Mark that we attempted extraction during this run
-          pdfExtractionAttempted = true;
-          // Lazy-load pdf-parse to avoid running its module code during bundling/evaluation
-          try {
-            if (!pdfParseModule) {
-              try {
-                // Import the internal implementation file to avoid pdf-parse's index.js
-                // debug block which tries to read a test PDF at import time.
-                const imported = await import('pdf-parse/lib/pdf-parse.js');
-                pdfParseModule = (imported && (imported.default ?? imported)) as (data: Buffer | Uint8Array | string) => Promise<unknown>;
-              } catch {
-                // Disable extraction to avoid repeated noisy failures (ENOENT during import etc.)
-                console.warn('pdf-parse import failed; disabling PDF extraction for this server run.');
-                pdfExtractionEnabled = false;
-                pdfParseModule = null;
-              }
-            }
-          } catch (impErr) {
-            console.warn('Unable to import pdf-parse dynamically:', impErr);
-            pdfExtractionEnabled = false;
-            pdfParseModule = null;
-          }
-
-          if (!pdfParseModule) continue; // can't extract without the parser
-
-          try {
-            const url = await presignGetUrl({ key: a.objectKey });
-            const res = await fetch(url);
-            if (res.ok) {
-              const arrayBuffer = await res.arrayBuffer();
-              const buffer = Buffer.from(arrayBuffer);
-              const pdfData = await pdfParseModule(buffer as Buffer);
-              type PdfResult = { text?: string };
-              const text = (pdfData && (pdfData as PdfResult).text ? String((pdfData as PdfResult).text) : "").trim();
-              if (text.length > 0) {
-                a.textContent = text.length > 1000 ? text.slice(0, 1000) + "..." : text;
-              }
-            }
-          } catch (e) {
-            console.warn("PDF extraction failed for", a.filename, e);
-            // Non-fatal: continue without textContent
-          }
-        }
-      } catch {
-        // ignore per-file extraction errors
-      }
-    }
-
     // Shape and split our chat into history (prior turns) and the last user prompt
     type ChatMessage = {
       id?: string;
@@ -183,7 +123,54 @@ export async function POST(req: NextRequest) {
     const last = msgs[msgs.length - 1];
     let prompt = last?.content ?? "";
 
-    // If there are attachments, append a brief, structured summary so the LLM knows context.
+    // Detect if the user explicitly asked about a unit/chapter number (e.g. "unit 3" or "chapter 3")
+    const unitMatch = String(prompt).match(/\b(?:unit|chapter)\s*(\d{1,3})\b/i);
+    const wantedUnit = unitMatch ? Number(unitMatch[1]) : null;
+
+    // Attempt to extract text from PDF attachments if we have an S3 objectKey
+    let pdfExtractionEnabled = true;
+    let pdfExtractionAttempted = false;
+    for (const a of atts) {
+      try {
+        const contentType = typeof a?.contentType === "string" ? a.contentType : "";
+        const hasText = typeof a?.textContent === "string" && a.textContent.length > 0;
+        if (!hasText && contentType.includes("pdf") && typeof a?.objectKey === "string" && a.objectKey.length > 0) {
+          // If extraction has been disabled previously, skip
+          if (!pdfExtractionEnabled) continue;
+          // Mark that we attempted extraction during this run
+          pdfExtractionAttempted = true;
+          try {
+            const url = await presignGetUrl({ key: a.objectKey });
+            const res = await fetch(url);
+            if (res.ok) {
+                const arrayBuffer = await res.arrayBuffer();
+                const buffer = Buffer.from(arrayBuffer);
+                // keep buffer on attachment for potential SSOT building later
+                try {
+                  a._buffer = buffer;
+                } catch {}
+                try {
+                  const { extractTextFromPdfBuffer } = await import('@/lib/pdf-extract');
+                  const text = await extractTextFromPdfBuffer(buffer as Buffer);
+                  if (text && text.length > 0) {
+                    a.textContent = text.length > 1000 ? text.slice(0, 1000) + '...' : text;
+                  }
+                } catch {
+                  console.warn('PDF extraction helper failed; disabling PDF extraction for this server run.');
+                  pdfExtractionEnabled = false;
+                }
+            }
+          } catch (e) {
+            console.warn('PDF extraction failed for', a.filename, e);
+            // Non-fatal: continue without textContent
+          }
+        }
+      } catch {
+        // ignore per-file extraction errors
+      }
+    }
+
+  // If there are attachments, append a brief, structured summary so the LLM knows context.
     if (atts.length) {
       const lines = atts.slice(0, 10).map((a, i: number) => {
         const name = typeof a?.filename === "string" ? a.filename : `file_${i + 1}`;
@@ -208,6 +195,53 @@ export async function POST(req: NextRequest) {
 
       const attachmentNote = `\n\n[Attachments]\nThe user attached ${atts.length} file(s). ${extractionNote} Use the provided content when relevant.\n${lines.join("\n")}`;
       prompt += attachmentNote;
+      // Optional debug: print attachments and prompt preview when DEBUG_SSOT is enabled
+      if (process.env.DEBUG_SSOT === '1' || process.env.DEBUG_SSOT === 'true') {
+        try {
+          console.log('DEBUG_SSOT: attachments preview:');
+          for (const a of atts) {
+            console.log('- file:', a.filename || '<unknown>', 'type:', a.contentType || '<unknown>');
+            if (a.textContent) console.log('  textPreview:', String(a.textContent).slice(0, 1000));
+          }
+          console.log('DEBUG_SSOT: prompt preview (first 2000 chars):\n', String(prompt).slice(0, 2000));
+        } catch {
+          // ignore logging errors
+        }
+      }
+    }
+
+    // If the user asked about a specific unit/chapter, try to build a focused unit context
+    if (wantedUnit && pdfExtractionEnabled) {
+      try {
+        if (process.env.DEBUG_SSOT === '1' || process.env.DEBUG_SSOT === 'true') {
+          console.log('DEBUG_SSOT: wantedUnit=', wantedUnit, 'pdfExtractionEnabled=', pdfExtractionEnabled);
+        }
+        for (const a of atts) {
+          if (process.env.DEBUG_SSOT === '1' || process.env.DEBUG_SSOT === 'true') {
+            console.log('DEBUG_SSOT: attachment has buffer?', Boolean(a && a._buffer), 'filename=', a?.filename);
+          }
+          if (a && a._buffer) {
+            try {
+              const { buildUnitContextAndPrompt } = await import('@/lib/ssot');
+              const res = await buildUnitContextAndPrompt(a._buffer as Buffer, wantedUnit, { maxChars: 8000 });
+              if (process.env.DEBUG_SSOT === '1' || process.env.DEBUG_SSOT === 'true') {
+                console.log('DEBUG_SSOT: buildUnitContextAndPrompt returned context length=', res?.context?.length ?? 0);
+              }
+              if (res && res.context && res.context.length > 50) {
+                // Replace prompt with an instructioned prompt that uses the unit context
+                const userQuestion = (last && last.content) ? String(last.content) : '';
+                prompt = `You are given the following authoritative excerpt from a user's textbook (Unit ${wantedUnit}). Use only this text to answer the user's question.\n\nContext:\n${res.context}\n\nQuestion: ${userQuestion}`;
+                break;
+              }
+            } catch {
+              if (process.env.DEBUG_SSOT === '1' || process.env.DEBUG_SSOT === 'true') console.log('DEBUG_SSOT: buildUnitContextAndPrompt failed for', a?.filename);
+              // ignore per-attachment ssot failures
+            }
+          }
+        }
+      } catch {
+        // ignore
+      }
     }
 
     // Map only prior messages to Gemini roles
@@ -227,6 +261,14 @@ export async function POST(req: NextRequest) {
 
     // Start chat with sanitized history and send the last user content as the prompt
     const chat = model.startChat({ history });
+
+    // Debug: print prompt before sending when DEBUG_SSOT is enabled
+    if (process.env.DEBUG_SSOT === '1' || process.env.DEBUG_SSOT === 'true') {
+      try {
+        console.log('DEBUG_SSOT: sending prompt length=', String(prompt).length);
+        console.log('DEBUG_SSOT: prompt snippet:\n', String(prompt).slice(0, 4000));
+  } catch {}
+    }
 
     const result = await chat.sendMessage(prompt);
     const response = await result.response;
