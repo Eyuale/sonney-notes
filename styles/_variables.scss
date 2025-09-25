@@ -223,6 +223,8 @@
   --tt-border-color: var(--tt-gray-light-a-200);
   --tt-border-color-tint: var(--tt-gray-light-a-100);
   --tt-sidebar-bg-color: var(--tt-gray-light-100);
+  /* Header foreground (light) */
+  --tt-header-foreground: var(--black);
   --tt-scrollbar-color: var(--tt-gray-light-a-200);
   --tt-cursor-color: var(--tt-brand-color-500);
   --tt-selection-color: rgba(157, 138, 255, 0.2);
@@ -234,6 +236,8 @@
 .dark {
   --tt-bg-color: var(--black);
   --tt-border-color: var(--tt-gray-dark-a-200);
+  /* Header foreground (dark) */
+  --tt-header-foreground: var(--white);
   --tt-border-color-tint: var(--tt-gray-dark-a-100);
   --tt-sidebar-bg-color: var(--tt-gray-dark-100);
   --tt-scrollbar-color: var(--tt-gray-dark-a-200);

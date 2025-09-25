@@ -122,6 +122,19 @@
   color: var(--text);
 }
 
+/* Dark mode: ensure assistant text and input placeholder are visible */
+.dark .chat-panel .chat-msg.assistant .bubble {
+  color: var(--tt-color-text-gray-900, #fff);
+}
+
+.dark .chat-panel .input-shell input {
+  color: var(--tt-color-text-gray-900, #fff);
+}
+
+.dark .chat-panel .input-shell input::placeholder {
+  color: rgba(255,255,255,0.6);
+}
+
 .chat-panel .icon-btn,
 .chat-panel .send-btn {
   appearance: none;
