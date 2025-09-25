@@ -8,11 +8,6 @@
 */
 
 .chat-panel {
-  /* Scene background - use primary color and a gentle tint */
-  --bg-start: color-mix(in oklab, var(--color-primary) 70%, white 30%);
-  --bg-end: color-mix(in oklab, var(--color-primary) 30%, var(--md-ref-palette-secondary) 70%);
-  --bg-radial: 260 70% 94%;    /* light highlight */
-
   /* Surfaces mapped to Material tokens */
   --surface: var(--card-bg);
   --surface-strong: color-mix(in oklab, var(--card-bg) 82%, var(--color-primary) 18%);
@@ -28,11 +23,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
-  background:
-    radial-gradient(60% 60% at 80% 10%, hsl(var(--bg-radial) / 0.9), transparent 60%),
-    radial-gradient(60% 60% at 10% 90%, rgba(255,255,255,0.5), transparent 55%),
-  linear-gradient(160deg, var(--bg-start), var(--bg-end));
 }
 
 /* The frosted card that contains the chat UI */
@@ -41,10 +31,8 @@
   display: flex;
   flex-direction: column;
   width: min(640px, 92vw);
-  height: min(88vh, 900px);
-  border-radius: 18px;
+  height: 100%;
   background: var(--surface);
-  border: 1px solid var(--stroke);
   box-shadow: var(--shadow);
   -webkit-backdrop-filter: blur(18px);
   backdrop-filter: blur(18px);

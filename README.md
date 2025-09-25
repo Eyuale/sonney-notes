@@ -201,6 +201,22 @@ The file uploader is integrated into the chat panel:
 // Files are attached via the paperclip button in the chat input
 // Extracted text content is automatically included in LLM context
 ```
+## PDF Extraction utilities
+
+This repo contains server-side utilities for extracting text and simple tables from PDFs located in `lib/pdf-extract.ts` and text cleaning in `lib/pdf-clean.ts`.
+
+Quick notes:
+- `extractTextFromPdfBuffer(buffer)` - returns cleaned text, tries `pdf-parse` then `pdfjs` and finally an OCR fallback (if optional deps like `canvas` and `tesseract.js` are installed).
+- `extractTablesFromPdfBuffer(buffer)` - conservative column-aligned table heuristic using pdfjs text positions.
+- `tablesToCsv(pages)` and `tablesToHtml(pages)` - helpers to convert extracted table objects to CSV/HTML strings.
+
+Running the small test suite added for these utilities:
+
+```bash
+npm run test:extract
+```
+
+If you don't have the optional OCR dependencies installed, OCR fallback will be skipped. For high-quality OCR consider using a cloud OCR provider (Google Vision, AWS Textract) and wire it into the OCR path in `lib/pdf-extract.ts`.
 
 ### Security Features
 

@@ -10,7 +10,8 @@ type LessonDbDoc = {
   createdAt?: Date
 }
 
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function GET(_req: Request, context: any) {
   try {
     const session = await getAuthSession();
     if (!session || !session.user) {
@@ -21,7 +22,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     }
     const userId = (session.user as { id?: string }).id || session.user.email || "anonymous";
 
-    const { id } = params;
+  const { id } = context.params as { id: string };
     if (!id || !ObjectId.isValid(id)) {
       return new Response(JSON.stringify({ error: "Invalid id" }), {
         status: 400,
