@@ -108,6 +108,117 @@ MONGODB_URI=mongodb+srv://user:pass@cluster0.xxxxx.mongodb.net/?retryWrites=true
 GOOGLE_GENERATIVE_AI_API_KEY=your_api_key_here
 # Optional
 # GEMINI_MODEL_NAME=gemini-1.5-pro
+
+## File Attachments (AWS S3 SSOT)
+
+This project includes a comprehensive file attachment system that uses AWS S3 as a Single Source of Truth (SSOT) based on the file content hash (SHA-256). Files are stored under a deterministic key derived from their content hash to eliminate duplicates across users. Users link to the shared blob via metadata in MongoDB.
+
+### Features
+
+- **Single Source of Truth**: Files are deduplicated by content hash - same file uploaded by different users only stored once
+- **Text Extraction**: Automatic text extraction for common formats (txt, md, csv, json) to enhance AI understanding
+- **Security**: Client and server-side validation, file type and size restrictions
+- **Error Handling**: Comprehensive error messages and user feedback
+- **LLM Integration**: Attached files are automatically included in chat context with extracted text content
+
+### API Routes
+
+- `POST /api/files/presign`
+  - Request: `{ filename, contentType, size, sha256Hex }`
+  - Response: `{ alreadyExists: boolean, uploadUrl?, key, bucket, region }`
+  - Behavior: If a blob with the same `sha256Hex` exists, returns `alreadyExists: true` and skips uploading. Otherwise, returns a presigned `PUT` URL for direct S3 upload.
+
+- `POST /api/files/confirm`
+  - Request: `{ filename, contentType, size, sha256Hex, key }`
+  - Response: `{ linked: true, file: {...} }`
+  - Behavior: Upserts the blob record in `file_blobs` and idempotently creates a link in `user_files` for the current user.
+
+- `GET /api/files`
+  - Lists the current user's files from `user_files`.
+
+- `GET /api/files/get-url?key=<s3Key>`
+  - Returns a presigned GET URL for downloading/viewing the file.
+
+### MongoDB Collections
+
+- `file_blobs` (SSOT)
+  - `hash: string` (SHA-256 hex)
+  - `objectKey: string` (S3 key, e.g., `ssot/<sha256>`)
+  - `size: number`
+  - `contentType: string`
+  - `createdAt: Date`
+
+- `user_files`
+  - `userId: string`
+  - `filename: string`
+  - `hash: string`
+  - `objectKey: string`
+  - `size: number`
+  - `contentType: string`
+  - `createdAt: Date`
+
+### Environment Variables (add to `.env.local`)
+
+```
+# AWS S3
+AWS_REGION=us-east-1
+S3_BUCKET_NAME=your-bucket-name
+
+# Ensure your server has AWS credentials for presigning
+AWS_ACCESS_KEY_ID=your_access_key
+AWS_SECRET_ACCESS_KEY=your_secret_key
+```
+
+### S3 Bucket Configuration
+
+1. **CORS Configuration**: Add to your S3 bucket to allow browser uploads via presigned URLs:
+
+```json
+[
+  {
+    "AllowedHeaders": ["*"],
+    "AllowedMethods": ["GET", "PUT", "HEAD"],
+    "AllowedOrigins": ["http://localhost:3000", "https://your-domain.com"],
+    "ExposeHeaders": ["ETag", "Content-Length", "Content-Type", "Content-Disposition"],
+    "MaxAgeSeconds": 3000
+  }
+]
+```
+
+2. **Bucket Policy**: Ensure your server has `s3:PutObject` and `s3:GetObject` permissions on the bucket.
+
+### File Support
+
+**Supported file types**: Images, text files, documents, audio, video (up to 50MB)
+**Text extraction**: Automatic for `.txt`, `.md`, `.csv`, `.json` files (up to 10MB)
+**Deduplication**: All file types are deduplicated by content hash
+
+### Usage in UI
+
+The file uploader is integrated into the chat panel:
+
+```tsx
+// Files are attached via the paperclip button in the chat input
+// Extracted text content is automatically included in LLM context
+```
+
+### Security Features
+
+- **File validation**: Type and size validation on both client and server
+- **Hash validation**: SHA-256 hash verification
+- **Access control**: Files are private and accessed via presigned URLs
+- **Rate limiting**: Built into Next.js API routes
+
+### Error Handling
+
+The system provides detailed error messages for:
+- File too large (>50MB)
+- Unsupported file types
+- Invalid file hashes
+- Upload failures
+- Network errors
+
+All errors are displayed to users with clear, actionable messages.
 ```
 
 ### Install Dependencies

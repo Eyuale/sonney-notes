@@ -74,6 +74,37 @@
   --tt-brand-color-900: rgba(43, 25, 102, 1);
   --tt-brand-color-950: hsla(257, 100%, 9%, 1);
 
+  /* Material 3 Expressive - Blue (light) */
+  --md-ref-palette-primary: #0B57D0; /* expressive blue primary */
+  --md-ref-palette-on-primary: #FFFFFF;
+  --md-ref-palette-primary-container: #D9E6FF;
+  --md-ref-palette-on-primary-container: #00183F;
+  --md-ref-palette-secondary: #0066C0;
+  --md-ref-palette-secondary-container: #DDEEFF;
+  --md-ref-palette-on-secondary: #FFFFFF;
+  --md-ref-palette-tertiary: #006B69;
+  --md-ref-palette-tertiary-container: #D9F6F4;
+  --md-ref-palette-error: #B00020;
+  --md-ref-palette-background: #FFFFFF;
+  --md-ref-palette-surface: #FFFFFF;
+  --md-ref-palette-on-surface: #1A1C1E;
+  --md-ref-palette-surface-variant: #F3F6FB;
+  --md-ref-palette-outline: #9AA6C1;
+
+  /* Material 3 Expressive - Blue (dark) */
+  --md-ref-palette-primary-dark: #9CC6FF;
+  --md-ref-palette-on-primary-dark: #003063;
+  --md-ref-palette-primary-container-dark: #00448A;
+  --md-ref-palette-on-primary-container-dark: #D9E6FF;
+  --md-ref-palette-secondary-dark: #8FC6FF;
+  --md-ref-palette-secondary-container-dark: #004A7A;
+  --md-ref-palette-tertiary-dark: #6BD6CE;
+  --md-ref-palette-background-dark: #0A0F1A;
+  --md-ref-palette-surface-dark: #0F1720;
+  --md-ref-palette-on-surface-dark: #E6EEF9;
+  --md-ref-palette-surface-variant-dark: #0B1330;
+  --md-ref-palette-outline-dark: #46607A;
+
   /* Green */
   --tt-color-green-inc-5: hsla(129, 100%, 97%, 1);
   --tt-color-green-inc-4: hsla(129, 100%, 92%, 1);

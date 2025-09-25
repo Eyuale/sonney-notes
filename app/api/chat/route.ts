@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { presignGetUrl } from "@/lib/s3";
 import { getAuthSession } from "@/lib/auth";
 import { getDb } from "@/lib/mongodb";
 import type { LessonBlueprint } from "@/lib/lesson-mapper";
@@ -102,7 +103,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { messages } = await req.json();
+    const { messages, attachments } = await req.json();
     if (!Array.isArray(messages)) {
       return new Response(
         JSON.stringify({
@@ -110,6 +111,66 @@ export async function POST(req: NextRequest) {
         }),
         { status: 400, headers: { "Content-Type": "application/json" } }
       );
+    }
+    const atts = Array.isArray(attachments) ? attachments : [];
+
+    // Attempt to extract text from PDF attachments if we have an S3 objectKey
+  let pdfParseModule: ((data: Buffer | Uint8Array | string) => Promise<unknown>) | null = null;
+  let pdfExtractionEnabled = true;
+  let pdfExtractionAttempted = false;
+    for (const a of atts) {
+      try {
+        const contentType = typeof a?.contentType === "string" ? a.contentType : "";
+        const hasText = typeof a?.textContent === "string" && a.textContent.length > 0;
+        if (!hasText && contentType.includes("pdf") && typeof a?.objectKey === "string" && a.objectKey.length > 0) {
+          // If extraction has been disabled previously, skip
+          if (!pdfExtractionEnabled) continue;
+          // Mark that we attempted extraction during this run
+          pdfExtractionAttempted = true;
+          // Lazy-load pdf-parse to avoid running its module code during bundling/evaluation
+          try {
+            if (!pdfParseModule) {
+              try {
+                // Import the internal implementation file to avoid pdf-parse's index.js
+                // debug block which tries to read a test PDF at import time.
+                const imported = await import('pdf-parse/lib/pdf-parse.js');
+                pdfParseModule = (imported && (imported.default ?? imported)) as (data: Buffer | Uint8Array | string) => Promise<unknown>;
+              } catch {
+                // Disable extraction to avoid repeated noisy failures (ENOENT during import etc.)
+                console.warn('pdf-parse import failed; disabling PDF extraction for this server run.');
+                pdfExtractionEnabled = false;
+                pdfParseModule = null;
+              }
+            }
+          } catch (impErr) {
+            console.warn('Unable to import pdf-parse dynamically:', impErr);
+            pdfExtractionEnabled = false;
+            pdfParseModule = null;
+          }
+
+          if (!pdfParseModule) continue; // can't extract without the parser
+
+          try {
+            const url = await presignGetUrl({ key: a.objectKey });
+            const res = await fetch(url);
+            if (res.ok) {
+              const arrayBuffer = await res.arrayBuffer();
+              const buffer = Buffer.from(arrayBuffer);
+              const pdfData = await pdfParseModule(buffer as Buffer);
+              type PdfResult = { text?: string };
+              const text = (pdfData && (pdfData as PdfResult).text ? String((pdfData as PdfResult).text) : "").trim();
+              if (text.length > 0) {
+                a.textContent = text.length > 1000 ? text.slice(0, 1000) + "..." : text;
+              }
+            }
+          } catch (e) {
+            console.warn("PDF extraction failed for", a.filename, e);
+            // Non-fatal: continue without textContent
+          }
+        }
+      } catch {
+        // ignore per-file extraction errors
+      }
     }
 
     // Shape and split our chat into history (prior turns) and the last user prompt
@@ -120,7 +181,34 @@ export async function POST(req: NextRequest) {
     };
     const msgs = messages as ChatMessage[];
     const last = msgs[msgs.length - 1];
-    const prompt = last?.content ?? "";
+    let prompt = last?.content ?? "";
+
+    // If there are attachments, append a brief, structured summary so the LLM knows context.
+    if (atts.length) {
+      const lines = atts.slice(0, 10).map((a, i: number) => {
+        const name = typeof a?.filename === "string" ? a.filename : `file_${i + 1}`;
+        const type = typeof a?.contentType === "string" ? a.contentType : "unknown";
+        const size = typeof a?.size === "number" ? a.size : undefined;
+        const key = typeof a?.objectKey === "string" ? a.objectKey : "";
+        const textContent = typeof a?.textContent === "string" ? a.textContent : null;
+
+        let line = `- ${name} (${type}${size ? ", " + size + " bytes" : ""}) key=${key}`;
+        if (textContent && textContent.length > 0) {
+          const preview = textContent.length > 500 ? textContent.substring(0, 500) + "..." : textContent;
+          line += `\n  Content: ${preview}`;
+        }
+        return line;
+      });
+      let extractionNote = '';
+      if (!pdfExtractionEnabled && atts.some((x) => typeof x?.contentType === 'string' && x.contentType.includes('pdf'))) {
+        extractionNote = '\n\nNote: PDF text extraction is currently disabled on the server (parser import failed). I attempted extraction but was unable to run the parser; attach a plain-text version or retry later.';
+      } else if (pdfExtractionAttempted) {
+        extractionNote = '\n\nNote: I attempted to extract text from attached PDFs and included previews where available.';
+      }
+
+      const attachmentNote = `\n\n[Attachments]\nThe user attached ${atts.length} file(s). ${extractionNote} Use the provided content when relevant.\n${lines.join("\n")}`;
+      prompt += attachmentNote;
+    }
 
     // Map only prior messages to Gemini roles
     const history = msgs.slice(0, -1).map((m) => ({
@@ -180,6 +268,7 @@ export async function POST(req: NextRequest) {
           type: "blueprint",
           lessonId: lessonResult.insertedId,
           messages,
+          attachments: atts,
           chat: briefText,
           createdAt: new Date(),
         });
@@ -205,6 +294,7 @@ export async function POST(req: NextRequest) {
         userId,
         type: "text",
         messages,
+        attachments: atts,
         content: text,
         createdAt: new Date(),
       });

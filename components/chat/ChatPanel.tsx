@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect } from "react"
 import "./chat-panel.scss"
 import { IconArrowUp, IconMicrophone, IconPaperclip } from "@tabler/icons-react"
+import { FileUploader, type UploadedFile, type UploadProgress } from "@/components/file-uploader"
 import { tryParseBlueprint, blueprintToTiptapDoc, type TiptapDoc, type LessonBlueprint } from "@/lib/lesson-mapper"
 import AssistantMessage from "./AssistantMessage"
 
@@ -36,7 +37,66 @@ export function ChatPanel({ onLessonDoc }: { onLessonDoc?: (doc: TiptapDoc) => v
   const [currentChatId, setCurrentChatId] = useState<string | null>(null)
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameText, setRenameText] = useState<string>("")
+  const [attachments, setAttachments] = useState<UploadedFile[]>([])
+  const [uploadingFiles, setUploadingFiles] = useState<UploadProgress[]>([])
   const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  const handleUploadProgress = (progress: UploadProgress) => {
+    setUploadingFiles(prev => {
+      const existing = prev.find(p => p.file.name === progress.file.name);
+      if (existing) {
+        return prev.map(p => p.file.name === progress.file.name ? progress : p);
+      } else {
+        return [...prev, progress];
+      }
+    });
+  };
+
+  const handleRemoveUpload = async (upload: UploadProgress, idx: number) => {
+    // Cancel any ongoing upload
+    if (upload.status === 'uploading') {
+      // The upload is in progress, we should try to clean up
+      try {
+        // If the file was already uploaded to S3, we need to delete it
+        if (upload.progress > 50) { // If past 50%, likely uploaded to S3
+          await fetch('/api/files/cleanup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              filename: upload.file.name,
+              size: upload.file.size
+            })
+          });
+        }
+      } catch (error) {
+        console.error('Failed to cleanup file:', error);
+        // Continue anyway - we still want to remove from UI
+      }
+    }
+
+    // Remove from local state
+    setUploadingFiles(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleRemoveAttachment = async (attachment: UploadedFile, idx: number) => {
+    try {
+      // Clean up the file from storage if it exists
+      await fetch('/api/files/cleanup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filename: attachment.filename,
+          size: attachment.size
+        })
+      });
+    } catch (error) {
+      console.error('Failed to cleanup attachment:', error);
+      // Continue anyway - we still want to remove from UI
+    }
+
+    // Remove from attachments state
+    setAttachments(prev => prev.filter((_, i) => i !== idx));
+  };
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -96,6 +156,8 @@ export function ChatPanel({ onLessonDoc }: { onLessonDoc?: (doc: TiptapDoc) => v
   function newChat() {
     setMessages([initialGreeting])
     setInput("")
+    setAttachments([])
+    setUploadingFiles([])
     setCurrentChatId(null)
     // Clear the canvas/editor by sending an empty Tiptap document
     const emptyDoc: TiptapDoc = { type: "doc", content: [{ type: "paragraph" }] }
@@ -116,8 +178,8 @@ export function ChatPanel({ onLessonDoc }: { onLessonDoc?: (doc: TiptapDoc) => v
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: nextMessages }),
-      })
+        body: JSON.stringify({ messages: nextMessages, attachments }),
+      });
       if (!res.ok) {
         if (res.status === 401) {
           setError("Please sign in with Google to use the AI chat.")
@@ -183,6 +245,9 @@ export function ChatPanel({ onLessonDoc }: { onLessonDoc?: (doc: TiptapDoc) => v
       setMessages((m) => [...m, assistantMsg])
     } finally {
       setIsTyping(false)
+      // Clear attachments and uploading files after sending
+      setAttachments([])
+      setUploadingFiles([])
     }
   }
 
@@ -268,8 +333,77 @@ export function ChatPanel({ onLessonDoc }: { onLessonDoc?: (doc: TiptapDoc) => v
     }
   }
 
+  function FilePreview({ file, progress, onRemove }: {
+    file: File | UploadedFile,
+    progress?: UploadProgress,
+    onRemove: () => void
+  }) {
+    const isUploading = progress && progress.status !== 'completed' && progress.status !== 'error';
+    const hasError = progress?.status === 'error';
+
+    return (
+      <div className="file-preview" style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        padding: '4px 8px',
+        margin: '2px 4px',
+        border: '1px solid var(--card-border)',
+        borderRadius: '6px',
+        background: 'var(--card-bg)',
+        fontSize: '12px'
+      }}>
+        <div style={{ marginRight: '6px' }}>
+          {isUploading ? (
+            <div style={{ width: '12px', height: '12px', border: '2px solid var(--tt-gray-light-a-200)', borderTop: '2px solid var(--color-primary)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+          ) : hasError ? (
+            <div style={{ width: '12px', height: '12px', background: 'var(--tt-color-text-red)', borderRadius: '50%' }} />
+          ) : (
+            <div style={{ width: '12px', height: '12px', background: 'var(--tt-color-text-green)', borderRadius: '50%' }} />
+          )}
+        </div>
+        <span style={{ marginRight: '6px', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {('filename' in file ? file.filename : file.name) || 'Unknown file'}
+        </span>
+        {isUploading && (
+          <span style={{ marginRight: '6px', fontSize: '10px', color: 'var(--tt-color-text-gray)' }}>
+            {progress?.progress || 0}%
+          </span>
+        )}
+        {hasError && (
+          <span style={{ marginRight: '6px', fontSize: '10px', color: 'var(--tt-color-text-red)' }}>
+            Error
+          </span>
+        )}
+        <button
+          onClick={onRemove}
+          style={{
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            fontSize: '14px',
+            color: 'var(--tt-color-text-gray-contrast)',
+            padding: '0',
+            width: '16px',
+            height: '16px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
+          ×
+        </button>
+      </div>
+    );
+  }
+
   return (
     <aside className="chat-panel" aria-label="AI chat panel">
+      <style jsx>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
       <div className="chat-card">
       <div className="chat-header">
         <button className="chip" onClick={() => setHistoryOpen((v) => !v)} aria-expanded={historyOpen}>
@@ -363,24 +497,96 @@ export function ChatPanel({ onLessonDoc }: { onLessonDoc?: (doc: TiptapDoc) => v
       </div>
 
       <div className="chat-input-bar">
+          {/* File Previews in Input Area */}
+          <div style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            minHeight: '20px',
+            padding: '4px 8px',
+            gap: '4px',
+            // overflowX: 'auto',
+          }}>
+            {uploadingFiles.map((upload, idx) => (
+              <FilePreview
+                key={`upload-${upload.file.name}-${idx}`}
+                file={upload.file}
+                progress={upload}
+                onRemove={() => handleRemoveUpload(upload, idx)}
+              />
+            ))}
+            {attachments.map((attachment, idx) => (
+              <FilePreview
+                key={`attachment-${attachment.objectKey}-${idx}`}
+                file={attachment}
+                onRemove={() => handleRemoveAttachment(attachment, idx)}
+              />
+            ))}
+          </div>
         <div className="input-shell">
-          <button className="icon-btn" title="Attach">
-            <IconPaperclip size={16}/>
-          </button>
+          {/* Clear attachments button when there are attachments */}
+          {attachments.length > 0 && (
+            <div style={{ padding: '4px 8px', borderBottom: '1px solid var(--card-border)' }}>
+              <button
+                onClick={() => setAttachments([])}
+                style={{
+                  background: 'none',
+                  border: '1px solid var(--card-border)',
+                  borderRadius: '4px',
+                  padding: '2px 8px',
+                  fontSize: '11px',
+                  color: 'var(--tt-color-text-gray)',
+                  cursor: 'pointer'
+                }}
+              >
+                Clear files
+              </button>
+            </div>
+          )}
+          
+
+
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={onKeyDown}
-            placeholder="Learn something new"
+            placeholder={attachments.length > 0 ? "Add your message..." : "Learn something new"}
             aria-label="Chat prompt"
+            style={{ flex: 1 }}
           />
-          <button className="icon-btn" title="Voice">
-            <IconMicrophone size={16}/>
-          </button>
-          <button className="send-btn" onClick={send} aria-label="Send" disabled={isTyping}>
-            <IconArrowUp size={16}/>
-          </button>
+          <div className="chat-panel-input-button-groups">
+            <FileUploader
+              onUploaded={(file) => {
+                // Ask user if they want to add to existing files or replace
+                if (attachments.length > 0) {
+                  const shouldReplace = confirm("Add this file to existing attachments? Click OK to add, Cancel to replace.");
+                  if (shouldReplace) {
+                    setAttachments(prev => [...prev, file]);
+                  } else {
+                    setAttachments([file]);
+                  }
+                } else {
+                  setAttachments([file]);
+                }
+                setUploadingFiles(prev => prev.filter(p => p.file.name !== file.filename));
+              }}
+              onProgress={handleUploadProgress}
+            >
+              <button className="icon-btn" title="Attach">
+                <IconPaperclip size={16}/>
+              </button>
+            </FileUploader>
+            <div className="senders">
+              <button className="icon-btn" title="Voice">
+                <IconMicrophone size={16}/>
+              </button>
+              <button className="send-btn" onClick={send} aria-label="Send" disabled={isTyping || uploadingFiles.length > 0}>
+                <IconArrowUp size={16}/>
+              </button>
+            </div>
+          </div>
         </div>
+
         {error && (
           <div role="status" aria-live="polite" className="chat-error">
             {error}
