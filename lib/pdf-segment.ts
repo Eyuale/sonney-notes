@@ -32,7 +32,7 @@ export function splitIntoUnits(cleanedText: string): SectionMap {
   let currentTitle = '';
   let buffer: string[] = [];
 
-  for (let rawLine of lines) {
+  for (const rawLine of lines) {
     const line = preNormalizeLineForHeading(rawLine);
     const m = line.match(headingRegex);
     if (m) {
@@ -103,7 +103,7 @@ export function extractUnitBody(cleanedText: string, unitNumber: number, maxChar
 
   // 1) Try to find the unit title in ToC and capture title words following it
   const tocMatch = text.match(new RegExp(`(?:Unit\\s*${unitNumber}[^\n]{0,80})`, 'i'));
-  let titleSnippet: string | null = tocMatch ? tocMatch[0] : null;
+  const titleSnippet: string | null = tocMatch ? tocMatch[0] : null;
 
   // 2) Search for an exact title phrase occurrence in the body if found in toc
   if (titleSnippet) {
