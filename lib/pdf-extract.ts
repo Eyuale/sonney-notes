@@ -8,8 +8,7 @@ import type { Buffer } from 'buffer';
 // Use require for the cleaning util to avoid ESM/CJS resolution issues at runtime
 // when running the sample script via ts-node register.
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const { cleanPdfText } = require('./pdf-clean');
-
+import { cleanPdfText } from './pdf-clean';
 /**
  * Try to extract text from a PDF buffer. Steps:
  * 1) Try to use pdf-parse (fast and often sufficient)
@@ -42,7 +41,7 @@ export async function extractTextFromPdfBuffer(buffer: Buffer): Promise<string> 
 
     // 2) Fallback: pdfjs text extraction per page for better structure control
     try {
-      const pdfjs = await import('pdfjs-dist/legacy/build/pdf.js');
+      const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
       const loadingTask = pdfjs.getDocument({ data: buffer });
       const pdfRaw = await loadingTask.promise;
       const pdf: any = pdfRaw;
@@ -72,7 +71,7 @@ export async function extractTextFromPdfBuffer(buffer: Buffer): Promise<string> 
     // 3) OCR fallback: render pages to images and run tesseract.js (optional deps)
     try {
       // Dynamic import of heavy optional deps. Cast to unknown then any to avoid TS trying to resolve
-  const pdfjsModule = (await import('pdfjs-dist/legacy/build/pdf.js')) as unknown as any;
+  const pdfjsModule = (await import('pdfjs-dist/legacy/build/pdf.mjs')) as unknown as any;
 
       // Try to load node-canvas optionally
       let createCanvas: any = null;
@@ -140,7 +139,7 @@ export async function extractTextPagesFromPdfBuffer(buffer: Buffer): Promise<Arr
   const out: Array<{ pageNumber: number; text: string }> = [];
   if (!buffer) return out;
   try {
-    const pdfjs = await import('pdfjs-dist/legacy/build/pdf.js');
+    const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
     const loadingTask = pdfjs.getDocument({ data: buffer });
     const pdf: any = await loadingTask.promise;
     const maxPages = pdf.numPages || 0;
@@ -180,7 +179,7 @@ export async function extractTablesFromPdfBuffer(buffer: Buffer): Promise<{
   if (!buffer) return out;
 
   try {
-    const pdfjs = await import('pdfjs-dist/legacy/build/pdf.js');
+    const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
     const loadingTask = pdfjs.getDocument({ data: buffer });
     const pdf: any = await loadingTask.promise;
     const maxPages = pdf.numPages || 0;

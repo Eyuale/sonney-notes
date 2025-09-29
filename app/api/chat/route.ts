@@ -56,6 +56,7 @@ Prefer the following when appropriate:
 - Use unordered/ordered lists for steps or items.
 - Use backticked code for inline code and fenced blocks for multi-line code.
 - Avoid surrounding the entire answer in a code fence unless it is code.
+- Make the lesson very long unless the user asks you to make it shorter
 `;
 
 // Minimal server-side blueprint parser (no imports from client libs)
