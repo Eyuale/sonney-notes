@@ -161,11 +161,11 @@ This project includes a comprehensive file attachment system that uses AWS S3 as
 
 ```
 # AWS S3
-AWS_REGION=us-east-1
+AWS_REGION_NAME=us-east-1
 S3_BUCKET_NAME=your-bucket-name
 
 # Ensure your server has AWS credentials for presigning
-AWS_ACCESS_KEY_ID=your_access_key
+AWS_ACCESS_KEY_ID_SECRET=your_access_key
 AWS_SECRET_ACCESS_KEY=your_secret_key
 ```
 

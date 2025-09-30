@@ -3,9 +3,9 @@ import { S3Client, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getDb } from "@/lib/mongodb";
 
 const s3Client = new S3Client({
-  region: process.env.AWS_REGION!,
+  region: process.env.AWS_REGION_NAME!,
   credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID_SECRET!,
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
   },
 });
