@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { ObjectId } from "mongodb";                                                               
 import { presignGetUrl } from "@/lib/s3";
 import { getAuthSession } from "@/lib/auth";
 import { getDb } from "@/lib/mongodb";
@@ -104,7 +105,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { messages, attachments } = await req.json();
+    const { messages, attachments, chatId } = await req.json();
     if (!Array.isArray(messages)) {
       return new Response(
         JSON.stringify({
@@ -274,6 +275,10 @@ export async function POST(req: NextRequest) {
     const result = await chat.sendMessage(prompt);
     const response = await result.response;
     const text = response.text();
+    const db = await getDb();
+    const chats = db.collection("chats");
+
+
 
     // Attempt to parse a JSON blueprint from the model output
     const { blueprint } = tryParseJsonBlueprint(text);
@@ -295,18 +300,23 @@ export async function POST(req: NextRequest) {
       });
       const briefText = brief.response.text();
 
-      // Persist lesson and chat record
-      try {
-        const db = await getDb();
+      let newChatId = chatId;
+      if (chatId) {
+        // Update existing chat
+        await chats.updateOne(
+          { _id: new ObjectId(chatId), userId },
+          { $set: { messages, attachments: atts, chat: briefText } }
+        );
+      } else {
+        // Create new chat and lesson
         const lessons = db.collection("lessons");
-        const chats = db.collection("chats");
         const lessonDoc = {
           userId,
           blueprint: blueprint as LessonBlueprint,
           createdAt: new Date(),
         };
         const lessonResult = await lessons.insertOne(lessonDoc);
-        await chats.insertOne({
+        const chatResult = await chats.insertOne({
           userId,
           type: "blueprint",
           lessonId: lessonResult.insertedId,
@@ -315,25 +325,25 @@ export async function POST(req: NextRequest) {
           chat: briefText,
           createdAt: new Date(),
         });
-      } catch (persistErr) {
-        console.error("Failed to persist lesson/chat:", persistErr);
+        newChatId = chatResult.insertedId.toHexString();
       }
 
       return new Response(
-        JSON.stringify({ type: "blueprint", blueprint, chat: briefText }),
-        {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }
+        JSON.stringify({ type: "blueprint", blueprint, chat: briefText, chatId: newChatId }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
       );
     }
 
-    // Fallback: normal assistant message
-    // Persist plain assistant message chat
-    try {
-      const db = await getDb();
-      const chats = db.collection("chats");
-      await chats.insertOne({
+// Fallback: normal assistant message
+    // ⭐ MODIFIED: Update or insert plain text chat
+    let newChatId = chatId;
+    if (chatId) {
+      await chats.updateOne(
+        { _id: new ObjectId(chatId), userId },
+        { $set: { messages, attachments: atts, content: text } }
+      );
+    } else {
+      const chatResult = await chats.insertOne({
         userId,
         type: "text",
         messages,
@@ -341,11 +351,10 @@ export async function POST(req: NextRequest) {
         content: text,
         createdAt: new Date(),
       });
-    } catch (persistErr) {
-      console.error("Failed to persist chat:", persistErr);
+      newChatId = chatResult.insertedId.toHexString();
     }
 
-    return new Response(JSON.stringify({ role: "assistant", content: text }), {
+    return new Response(JSON.stringify({ role: "assistant", content: text, chatId: newChatId }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     });

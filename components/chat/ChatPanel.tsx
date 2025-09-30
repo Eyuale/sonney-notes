@@ -133,6 +133,7 @@ export function ChatPanel({ onLessonDoc }: { onLessonDoc?: (doc: TiptapDoc) => v
         type: "blueprint" | "text"
         chat?: string
         messages?: Array<{ role: "user" | "assistant"; content: string; id?: string }>
+        attachments?: UploadedFile[] // Expect attachments
       }
 
       const loaded: ChatMsg[] = Array.isArray(data.messages) && data.messages.length
@@ -142,6 +143,7 @@ export function ChatPanel({ onLessonDoc }: { onLessonDoc?: (doc: TiptapDoc) => v
           : [initialGreeting]
 
       setMessages(loaded)
+      setAttachments(data.attachments ?? [])
       setCurrentChatId(data.id)
       setHistoryOpen(false)
     } catch (e: unknown) {
@@ -166,7 +168,7 @@ export function ChatPanel({ onLessonDoc }: { onLessonDoc?: (doc: TiptapDoc) => v
 
   async function send() {
     const text = input.trim()
-    if (!text) return
+    if (!text && attachments.length === 0) return
     setError(null)
     const userMsg = { id: crypto.randomUUID(), role: "user" as const, content: text }
     const nextMessages = [...messages, userMsg]
@@ -178,7 +180,7 @@ export function ChatPanel({ onLessonDoc }: { onLessonDoc?: (doc: TiptapDoc) => v
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: nextMessages, attachments }),
+        body: JSON.stringify({ messages: nextMessages, attachments, chatId: currentChatId }),
       });
       if (!res.ok) {
         if (res.status === 401) {
@@ -194,10 +196,14 @@ export function ChatPanel({ onLessonDoc }: { onLessonDoc?: (doc: TiptapDoc) => v
         throw new Error(errMsg)
       }
       type ChatAPIResponse =
-        | { type: "blueprint"; blueprint: LessonBlueprint; chat: string }
-        | { role: "assistant"; content: string }
+        | { type: "blueprint"; blueprint: LessonBlueprint; chat: string; chatId: string }
+        | { role: "assistant"; content: string; chatId: string }
 
       const data: ChatAPIResponse = await res.json()
+
+      if (data.chatId && !currentChatId) {
+        setCurrentChatId(data.chatId);
+      }
 
       if ("type" in data && data.type === "blueprint") {
         // Server provided a structured blueprint and a friendly chat summary
@@ -245,8 +251,7 @@ export function ChatPanel({ onLessonDoc }: { onLessonDoc?: (doc: TiptapDoc) => v
       setMessages((m) => [...m, assistantMsg])
     } finally {
       setIsTyping(false)
-      // Clear attachments and uploading files after sending
-      setAttachments([])
+      // Clear uploading files after sending
       setUploadingFiles([])
     }
   }
