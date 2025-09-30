@@ -11,6 +11,7 @@ type ChatDbDoc = {
   lessonId?: ObjectId
   createdAt?: Date
   messages?: Array<{ role: "user" | "assistant"; content: string; id?: string }>
+  attachments?: any[]
 }
 
 export async function PATCH(req: Request, context: any) {
@@ -141,6 +142,7 @@ export async function GET(_req: Request, context: any) {
       lessonId: doc.lessonId ? String(doc.lessonId) : undefined,
       createdAt: doc.createdAt,
       messages: doc.messages || [],
+      attachments: doc.attachments || [],
     };
 
     return new Response(JSON.stringify(data), {
