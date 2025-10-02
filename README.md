@@ -35,6 +35,46 @@ The easiest way to deploy your Next.js app is to use the [Vercel Platform](https
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
 
+## RAG (Retrieval-Augmented Generation) with LangChain 🚀
+
+This project includes **RAG functionality** using LangChain and Google Gemini to intelligently answer questions over user-uploaded documents.
+
+### Quick Start
+
+1. **Start Chroma DB** (vector database):
+   ```bash
+   # Windows
+   npm run chroma:start
+   
+   # Or manually with Docker
+   docker run -p 8000:8000 chromadb/chroma
+   ```
+
+2. **Upload documents** in the chat interface (paperclip icon)
+   - Supports: **PDF, DOCX, TXT, MD**
+
+3. **Ask questions** - RAG automatically indexes and answers from your documents!
+
+### Features
+
+✅ **Multi-format Support**: PDF, DOCX, TXT, and Markdown files  
+✅ **Auto-indexing**: Documents are automatically processed when uploaded  
+✅ **Semantic Search**: Uses Google's embedding-001 model for accurate retrieval  
+✅ **Context-aware Answers**: Gemini generates answers based only on your documents  
+✅ **Source Citations**: Shows which document sections were used  
+✅ **Smart Fallback**: Falls back to regular Gemini if RAG isn't needed  
+
+### How It Works
+
+1. **Upload** → Document text is extracted (PDF/DOCX/TXT/MD)
+2. **Chunk** → Text split into 1000-character segments with 200-char overlap
+3. **Embed** → Chunks converted to vectors using Google's embedding model
+4. **Store** → Vectors saved in Chroma DB (per-user collections)
+5. **Query** → Questions semantically searched against stored chunks
+6. **Generate** → Gemini creates answers using only retrieved context
+
+See [docs/rag-quick-start.md](docs/rag-quick-start.md) for a 5-minute tutorial or [docs/rag-setup.md](docs/rag-setup.md) for detailed documentation.
+
 ## Gemini LLM Integration
 
 This project includes a chat panel (`components/chat/ChatPanel.tsx`) wired to an API route (`app/api/chat/route.ts`) that calls Google's Gemini model using `@google/generative-ai`.
@@ -104,10 +144,17 @@ MONGODB_URI=mongodb+srv://user:pass@cluster0.xxxxx.mongodb.net/?retryWrites=true
 # Optional DB name (defaults to tiptap_app)
 # MONGODB_DB=tiptap_app
 
-# Gemini
-GOOGLE_GENERATIVE_AI_API_KEY=your_api_key_here
+# Gemini (for answer generation)
+GOOGLE_GENERATIVE_AI_API_KEY=your_gemini_api_key_here
 # Optional
 # GEMINI_MODEL_NAME=gemini-1.5-pro
+
+# HuggingFace (for embeddings - COMPLETELY FREE!)
+# HUGGINGFACE_API_KEY=your_hf_key_here  # Optional - uses free demo key by default
+
+# RAG / Vector Store (optional - for document Q&A)
+# CHROMA_URL=http://localhost:8000
+```
 
 ## File Attachments (AWS S3 SSOT)
 

@@ -4,6 +4,10 @@ import { presignGetUrl } from "@/lib/s3";
 import { getAuthSession } from "@/lib/auth";
 import { getDb } from "@/lib/mongodb";
 import type { LessonBlueprint } from "@/lib/lesson-mapper";
+import { answerQuestionWithRAG, shouldUseRAG } from "@/lib/rag-service";
+import { isChromaAvailable } from "@/lib/rag-vector-store";
+import { processDocumentForRAG } from "@/lib/rag-document-processor";
+import { addDocumentsToVectorStore } from "@/lib/rag-vector-store";
 
 // Ensure you set GOOGLE_GENERATIVE_AI_API_KEY in your environment
 // For local dev: create a .env.local with: GOOGLE_GENERATIVE_AI_API_KEY=your_key_here
@@ -12,8 +16,15 @@ const MODEL_NAME = process.env.GEMINI_MODEL_NAME || "gemini-1.5-pro";
 
 // Instruction to prefer structured JSON blueprints for lessons and Markdown for general answers
 const systemInstruction = `
-You are an upbeat, encouraging tutor who helps students understand concepts by explaining ideas and asking students questions. Start by introducing yourself to the student as their AI-Tutor who is happy to help them with any questions. Only ask one question at a time. First, ask them what they would like to learn about. Wait for the response. Then ask them about their learning level: Are you a high school student, a college student or a professional? Wait for their response. Then ask them what they know already about the topic they have chosen. Wait for a response. Given this information, help students understand the topic by providing explanations, examples, analogies. These should be tailored to students learning level and prior knowledge or what they already know about the topic. Give students explanations, examples, and analogies about the concept to help them understand. You should guide students in an open-ended way. Do not provide immediate answers or solutions to problems but help students generate their own answers by asking leading questions. Ask students to explain their thinking. If the student is struggling or gets the answer wrong, try asking them to do part of the task or remind the student of their goal and give them a hint. If students improve, then praise them and show excitement. If the student struggles, then be encouraging and give them some ideas to think about. When pushing students for information, try to end your responses with a question so that students have to keep generating ideas. Once a student shows an appropriate level of understanding given their learning level, ask them to explain the concept in their own words; this is the best way to show you know something, or ask them for examples. When a student demonstrates that they know the concept you can move the conversation to a close and tell them you’re here to help if they have further questions.
+you are an assistant embedded in a lesson builder app.
 
+IMPORTANT CONTEXT:
+- This app has TWO panels: a CHAT PANEL (where we're talking) and a CANVAS/EDITOR (a Tiptap editor for displaying content)
+- When users say "canvas", "canva", or "editor", they are referring to the Tiptap editor in THIS app, NOT the external Canva.com website
+- You DO have the ability to display content on the canvas/editor - never say you cannot access it
+- The canvas/editor is part of this application and is where lessons and document content are displayed
+
+LESSON GENERATION:
 If the user asks to teach, generate, or create a STEM lesson, respond with ONLY a JSON blueprint.
 Do not include any backticks, markdown fences, or commentary. Output raw JSON only.
 Use this schema:
@@ -49,14 +60,26 @@ Example of valid output (no extra text before or after):
   ]
 }
 
-If the user asks a general question not related to generating a lesson, answer concisely in Markdown.
+SUMMARIES AND DOCUMENT CONTENT:
+If the user asks for a summary, overview, or detailed content from an uploaded document, respond with a special format:
+Start your response with "EDITOR_CONTENT:" followed by well-formatted Markdown content.
+This content will be displayed on the canvas/editor, not in the chat.
+Example:
+EDITOR_CONTENT:
+# Document Summary
+## Key Points
+- Point 1
+- Point 2
+
+GENERAL QUESTIONS:
+If the user asks a general question not related to generating a lesson or summarizing documents, answer concisely in Markdown.
 Prefer the following when appropriate:
 - Use headings (#, ##) for sections.
 - Use bold (**) for key terms.
 - Use unordered/ordered lists for steps or items.
 - Use backticked code for inline code and fenced blocks for multi-line code.
 - Avoid surrounding the entire answer in a code fence unless it is code.
--Make lessons detailed and comprehensive unless the user explicitly asks for brevity.
+- Make lessons detailed and comprehensive unless the user explicitly asks for brevity.
 `;
 
 // Minimal server-side blueprint parser (no imports from client libs)
@@ -122,128 +145,193 @@ export async function POST(req: NextRequest) {
     };
     const msgs = messages as ChatMessage[];
     const last = msgs[msgs.length - 1];
-    let prompt = last?.content ?? "";
+    const prompt = last?.content ?? "";
+    const userQuestion = prompt;
 
-    // Detect if the user explicitly asked about a unit/chapter number (e.g. "unit 3" or "chapter 3")
-    const unitMatch = String(prompt).match(/\b(?:unit|chapter)\s*(\d{1,3})\b/i);
-    const wantedUnit = unitMatch ? Number(unitMatch[1]) : null;
+    // ========================================
+    // RAG-FIRST APPROACH FOR DOCUMENT QUERIES
+    // ========================================
 
-    // Attempt to extract text from PDF attachments if we have an S3 objectKey
-    let pdfExtractionEnabled = true;
-    let pdfExtractionAttempted = false;
-    for (const a of atts) {
-      try {
-        const contentType = typeof a?.contentType === "string" ? a.contentType : "";
-        const hasText = typeof a?.textContent === "string" && a.textContent.length > 0;
-        if (!hasText && contentType.includes("pdf") && typeof a?.objectKey === "string" && a.objectKey.length > 0) {
-          // If extraction has been disabled previously, skip
-          if (!pdfExtractionEnabled) continue;
-          // Mark that we attempted extraction during this run
-          pdfExtractionAttempted = true;
+    // Step 1: Check if Chroma vector store is available
+    const chromaAvailable = await isChromaAvailable();
+    let documentIndexed = false;
+
+    // Step 2: Download and index any attached documents
+    if (chromaAvailable && atts.length > 0) {
+      console.log(`Processing ${atts.length} attachment(s) for RAG indexing...`);
+      
+      for (const att of atts) {
+        const contentType = typeof att?.contentType === "string" ? att.contentType : "";
+        const filename = typeof att?.filename === "string" ? att.filename : "";
+        const objectKey = typeof att?.objectKey === "string" ? att.objectKey : "";
+        
+        // Check if it's a supported document type
+        const isDocument = 
+          contentType.includes("pdf") || 
+          contentType.includes("wordprocessingml") || // DOCX
+          contentType.includes("msword") || // DOC
+          filename.endsWith(".pdf") ||
+          filename.endsWith(".docx") ||
+          filename.endsWith(".doc") ||
+          filename.endsWith(".txt") ||
+          filename.endsWith(".md");
+
+        if (isDocument && objectKey) {
           try {
-            const url = await presignGetUrl({ key: a.objectKey });
-            const res = await fetch(url);
-            if (res.ok) {
-                const arrayBuffer = await res.arrayBuffer();
-                const buffer = Buffer.from(arrayBuffer);
-                // keep buffer on attachment for potential SSOT building later
-                try {
-                  a._buffer = buffer;
-                } catch {}
-                try {
-                  const { extractTextFromPdfBuffer } = await import('@/lib/pdf-extract');
-                  const text = await extractTextFromPdfBuffer(buffer as Buffer);
-                  if (text && text.length > 0) {
-                    a.textContent = text.length > 1000 ? text.slice(0, 1000) + '...' : text;
+            // Download document from S3
+            const url = await presignGetUrl({ key: objectKey });
+            const response = await fetch(url);
+            
+            if (response.ok) {
+              const arrayBuffer = await response.arrayBuffer();
+              const buffer = Buffer.from(arrayBuffer);
+
+              // Process and index the document using RAG
+              console.log(`Indexing ${filename} (${contentType})...`);
+              const processed = await processDocumentForRAG(buffer, filename);
+              
+              if (processed.chunks.length > 0) {
+                await addDocumentsToVectorStore(
+                  userId,
+                  processed.chunks,
+                  {
+                    objectKey,
+                    filename,
+                    contentType,
+                    uploadedAt: new Date().toISOString(),
                   }
-                } catch {
-                  console.warn('PDF extraction helper failed; disabling PDF extraction for this server run.');
-                  pdfExtractionEnabled = false;
-                }
+                );
+                console.log(`✓ Successfully indexed ${processed.chunks.length} chunks from ${filename}`);
+                documentIndexed = true;
+              } else {
+                console.warn(`No chunks extracted from ${filename}`);
+              }
+            } else {
+              console.warn(`Failed to download ${filename}: ${response.status}`);
             }
-          } catch (e) {
-            console.warn('PDF extraction failed for', a.filename, e);
-            // Non-fatal: continue without textContent
+          } catch (indexErr) {
+            console.error(`Failed to index ${filename}:`, indexErr);
+            // Non-fatal - continue with other documents
           }
-        }
-      } catch {
-        // ignore per-file extraction errors
-      }
-    }
-
-  // If there are attachments, append a brief, structured summary so the LLM knows context.
-    if (atts.length) {
-      const lines = atts.slice(0, 10).map((a, i: number) => {
-        const name = typeof a?.filename === "string" ? a.filename : `file_${i + 1}`;
-        const type = typeof a?.contentType === "string" ? a.contentType : "unknown";
-        const size = typeof a?.size === "number" ? a.size : undefined;
-        const key = typeof a?.objectKey === "string" ? a.objectKey : "";
-        const textContent = typeof a?.textContent === "string" ? a.textContent : null;
-
-        let line = `- ${name} (${type}${size ? ", " + size + " bytes" : ""}) key=${key}`;
-        if (textContent && textContent.length > 0) {
-          const preview = textContent.length > 500 ? textContent.substring(0, 500) + "..." : textContent;
-          line += `\n  Content: ${preview}`;
-        }
-        return line;
-      });
-      let extractionNote = '';
-      if (!pdfExtractionEnabled && atts.some((x) => typeof x?.contentType === 'string' && x.contentType.includes('pdf'))) {
-        extractionNote = '\n\nNote: PDF text extraction is currently disabled on the server (parser import failed). I attempted extraction but was unable to run the parser; attach a plain-text version or retry later.';
-      } else if (pdfExtractionAttempted) {
-        extractionNote = '\n\nNote: I attempted to extract text from attached PDFs and included previews where available.';
-      }
-
-      const attachmentNote = `\n\n[Attachments]\nThe user attached ${atts.length} file(s). ${extractionNote} Use the provided content when relevant.\n${lines.join("\n")}`;
-      prompt += attachmentNote;
-      // Optional debug: print attachments and prompt preview when DEBUG_SSOT is enabled
-      if (process.env.DEBUG_SSOT === '1' || process.env.DEBUG_SSOT === 'true') {
-        try {
-          console.log('DEBUG_SSOT: attachments preview:');
-          for (const a of atts) {
-            console.log('- file:', a.filename || '<unknown>', 'type:', a.contentType || '<unknown>');
-            if (a.textContent) console.log('  textPreview:', String(a.textContent).slice(0, 1000));
-          }
-          console.log('DEBUG_SSOT: prompt preview (first 2000 chars):\n', String(prompt).slice(0, 2000));
-        } catch {
-          // ignore logging errors
         }
       }
     }
 
-    // If the user asked about a specific unit/chapter, try to build a focused unit context
-    if (wantedUnit && pdfExtractionEnabled) {
+    // Step 3: Use RAG to answer the question if we have documents or if it seems document-related
+    const shouldTryRAG = chromaAvailable && (documentIndexed || shouldUseRAG(userQuestion));
+    
+    if (shouldTryRAG) {
       try {
-        if (process.env.DEBUG_SSOT === '1' || process.env.DEBUG_SSOT === 'true') {
-          console.log('DEBUG_SSOT: wantedUnit=', wantedUnit, 'pdfExtractionEnabled=', pdfExtractionEnabled);
-        }
-        for (const a of atts) {
-          if (process.env.DEBUG_SSOT === '1' || process.env.DEBUG_SSOT === 'true') {
-            console.log('DEBUG_SSOT: attachment has buffer?', Boolean(a && a._buffer), 'filename=', a?.filename);
-          }
-          if (a && a._buffer) {
+        console.log(`Using RAG to answer: "${userQuestion.substring(0, 100)}..."`);
+        
+        // Query with RAG
+        const ragResult = await answerQuestionWithRAG(userId, userQuestion, {
+          k: 8, // Retrieve more chunks for comprehensive answers
+          includeScores: true,
+        });
+
+        // If we found relevant sources, use the RAG answer
+        if (ragResult.sources.length > 0) {
+          const ragAnswer = ragResult.answer;
+          
+          // Check if RAG response is meant for the editor
+          if (ragAnswer.trim().startsWith("EDITOR_CONTENT:")) {
+            const editorContent = ragAnswer.replace(/^EDITOR_CONTENT:\s*/i, "").trim();
+            const sourceInfo = `\n\n📚 *Based on ${ragResult.sources.length} section(s) from your uploaded document(s)*`;
+            const fullContent = editorContent + sourceInfo;
+
+            console.log(`✓ RAG answered successfully using ${ragResult.sources.length} sources (EDITOR mode)`);
+
+            // Persist RAG-based editor content chat
             try {
-              const { buildUnitContextAndPrompt } = await import('@/lib/ssot');
-              const res = await buildUnitContextAndPrompt(a._buffer as Buffer, wantedUnit, { maxChars: 8000 });
-              if (process.env.DEBUG_SSOT === '1' || process.env.DEBUG_SSOT === 'true') {
-                console.log('DEBUG_SSOT: buildUnitContextAndPrompt returned context length=', res?.context?.length ?? 0);
-              }
-              if (res && res.context && res.context.length > 50) {
-                // Replace prompt with an instructioned prompt that uses the unit context
-                const userQuestion = (last && last.content) ? String(last.content) : '';
-                prompt = `You are given the following authoritative excerpt from a user's textbook (Unit ${wantedUnit}). Use only this text to answer the user's question.\n\nContext:\n${res.context}\n\nQuestion: ${userQuestion}`;
-                break;
-              }
-            } catch {
-              if (process.env.DEBUG_SSOT === '1' || process.env.DEBUG_SSOT === 'true') console.log('DEBUG_SSOT: buildUnitContextAndPrompt failed for', a?.filename);
-              // ignore per-attachment ssot failures
+              const db = await getDb();
+              const chats = db.collection("chats");
+              await chats.insertOne({
+                userId,
+                type: "editor",
+                messages,
+                attachments: atts.map(a => ({
+                  filename: a.filename,
+                  contentType: a.contentType,
+                  objectKey: a.objectKey,
+                })),
+                content: fullContent,
+                ragUsed: true,
+                sourceCount: ragResult.sources.length,
+                createdAt: new Date(),
+              });
+            } catch (persistErr) {
+              console.error("Failed to persist RAG editor content chat:", persistErr);
             }
+
+            return new Response(
+              JSON.stringify({ 
+                type: "editor",
+                content: fullContent,
+                chat: `Content has been added to the editor based on ${ragResult.sources.length} section(s) from your document(s).`,
+                ragUsed: true,
+                sourceCount: ragResult.sources.length,
+              }), 
+              {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+              }
+            );
           }
+          
+          // Regular RAG answer for chat panel
+          const sourceInfo = `\n\n📚 *Based on ${ragResult.sources.length} section(s) from your uploaded document(s)*`;
+          const fullAnswer = ragAnswer + sourceInfo;
+
+          console.log(`✓ RAG answered successfully using ${ragResult.sources.length} sources`);
+
+          // Persist RAG-based chat
+          try {
+            const db = await getDb();
+            const chats = db.collection("chats");
+            await chats.insertOne({
+              userId,
+              type: "text",
+              messages: [...messages, { role: "assistant", content: fullAnswer }],
+              attachments: atts.map(a => ({
+                filename: a.filename,
+                contentType: a.contentType,
+                objectKey: a.objectKey,
+              })),
+              content: fullAnswer,
+              ragUsed: true,
+              sourceCount: ragResult.sources.length,
+              createdAt: new Date(),
+            });
+          } catch (persistErr) {
+            console.error("Failed to persist RAG chat:", persistErr);
+          }
+
+          return new Response(
+            JSON.stringify({ 
+              role: "assistant", 
+              content: fullAnswer,
+              ragUsed: true,
+              sourceCount: ragResult.sources.length,
+            }), 
+            {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }
+          );
+        } else {
+          console.log("RAG found no relevant sources, falling back to standard Gemini");
         }
-      } catch {
-        // ignore
+      } catch (ragErr) {
+        console.error('RAG query failed:', ragErr);
+        // Fall through to standard Gemini
       }
     }
+
+    // ========================================
+    // FALLBACK: Standard Gemini (no RAG)
+    // ========================================
+    console.log("Using standard Gemini (RAG not used or unavailable)");
 
     // Map only prior messages to Gemini roles
     const history = msgs.slice(0, -1).map((m) => ({
@@ -274,6 +362,39 @@ export async function POST(req: NextRequest) {
     const result = await chat.sendMessage(prompt);
     const response = await result.response;
     const text = response.text();
+
+    // Check if response is meant for the editor (summaries, document content, etc.)
+    if (text.trim().startsWith("EDITOR_CONTENT:")) {
+      const editorContent = text.replace(/^EDITOR_CONTENT:\s*/i, "").trim();
+      
+      // Persist editor content chat
+      try {
+        const db = await getDb();
+        const chats = db.collection("chats");
+        await chats.insertOne({
+          userId,
+          type: "editor",
+          messages,
+          attachments: atts,
+          content: editorContent,
+          createdAt: new Date(),
+        });
+      } catch (persistErr) {
+        console.error("Failed to persist editor content chat:", persistErr);
+      }
+
+      return new Response(
+        JSON.stringify({ 
+          type: "editor", 
+          content: editorContent,
+          chat: "Content has been added to the editor." 
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    }
 
     // Attempt to parse a JSON blueprint from the model output
     const { blueprint } = tryParseJsonBlueprint(text);

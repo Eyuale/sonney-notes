@@ -122,7 +122,7 @@ export function blueprintToTiptapDoc(blueprint: LessonBlueprint): TiptapDoc {
 // Very small Markdown -> TipTap node converter for lesson text
 // Supports: headings (#..), bullet/ordered lists (-, * and 1.), blockquotes (>), fenced code (```),
 // and inline bold (**) and italics (*).
-function markdownToNodes(text: string): TiptapNode[] {
+export function markdownToNodes(text: string): TiptapNode[] {
   const lines = String(text ?? "").split(/\r?\n/)
   if (lines.length === 0) return [{ type: "paragraph" }]
 

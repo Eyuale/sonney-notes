@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from "react"
 import "./chat-panel.scss"
 import { IconArrowUp, IconMicrophone, IconPaperclip } from "@tabler/icons-react"
 import { FileUploader, type UploadedFile, type UploadProgress } from "@/components/file-uploader"
-import { tryParseBlueprint, blueprintToTiptapDoc, type TiptapDoc, type LessonBlueprint } from "@/lib/lesson-mapper"
+import { tryParseBlueprint, blueprintToTiptapDoc, markdownToNodes, type TiptapDoc, type LessonBlueprint } from "@/lib/lesson-mapper"
 import AssistantMessage from "./AssistantMessage"
 
 export function ChatPanel({ onLessonDoc }: { onLessonDoc?: (doc: TiptapDoc) => void }) {
@@ -195,6 +195,7 @@ export function ChatPanel({ onLessonDoc }: { onLessonDoc?: (doc: TiptapDoc) => v
       }
       type ChatAPIResponse =
         | { type: "blueprint"; blueprint: LessonBlueprint; chat: string }
+        | { type: "editor"; content: string; chat: string }
         | { role: "assistant"; content: string }
 
       const data: ChatAPIResponse = await res.json()
@@ -202,6 +203,17 @@ export function ChatPanel({ onLessonDoc }: { onLessonDoc?: (doc: TiptapDoc) => v
       if ("type" in data && data.type === "blueprint") {
         // Server provided a structured blueprint and a friendly chat summary
         const doc = blueprintToTiptapDoc(data.blueprint)
+        onLessonDoc?.(doc)
+        setMessages((m) => [
+          ...m,
+          { id: crypto.randomUUID(), role: "assistant" as const, content: data.chat },
+        ])
+        // refresh history silently
+        fetchHistory().catch(() => {})
+      } else if ("type" in data && data.type === "editor") {
+        // Server provided markdown content for the editor (summaries, document content, etc.)
+        const nodes = markdownToNodes(data.content)
+        const doc: TiptapDoc = { type: "doc", content: nodes }
         onLessonDoc?.(doc)
         setMessages((m) => [
           ...m,

@@ -50,23 +50,26 @@ export default function RootLayout({
               background: "var(--tt-sidebar-bg-color, var(--background))",
               color: "var(--tt-header-foreground, var(--foreground, #1A1C1E))",
               zIndex: 10,
+              flexShrink: 0,
             }}
           >
             <div style={{ fontWeight: 600 }}>Lesson Builder</div>
             <UserMenu />
           </header>
-          <Script id="theme-init" strategy="beforeInteractive">
-            {`
-              try {
-                const stored = localStorage.getItem('theme');
-                const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-                const wantDark = stored ? stored === 'dark' : prefersDark;
-                const root = document.documentElement;
-                if (wantDark) root.classList.add('dark'); else root.classList.remove('dark');
-              } catch {}
-            `}
-          </Script>
-          {children}
+          <main style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+            <Script id="theme-init" strategy="beforeInteractive">
+              {`
+                try {
+                  const stored = localStorage.getItem('theme');
+                  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                  const wantDark = stored ? stored === 'dark' : prefersDark;
+                  const root = document.documentElement;
+                  if (wantDark) root.classList.add('dark'); else root.classList.remove('dark');
+                } catch {}
+              `}
+            </Script>
+            {children}
+          </main>
         </Providers>
       </body>
     </html>
