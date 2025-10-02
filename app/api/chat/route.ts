@@ -64,15 +64,59 @@ SUMMARIES AND DOCUMENT CONTENT:
 If the user asks for a summary, overview, or detailed content from an uploaded document, respond with a special format:
 Start your response with "EDITOR_CONTENT:" followed by well-formatted Markdown content.
 This content will be displayed on the canvas/editor, not in the chat.
+
+SINGLE SOURCE OF TRUTH PRINCIPLE:
+- Uploaded documents are the SINGLE SOURCE OF TRUTH
+- Use ONLY information from the uploaded documents - DO NOT add external knowledge
+- DO NOT supplement document content with your training data
+- If information is not in the documents, explicitly state: "This information is not available in your uploaded document(s)."
+- Your role is to extract and present what's IN THE DOCUMENTS, not to expand on it
+
+CRITICAL REQUIREMENTS FOR SUMMARIES:
+- Be COMPREHENSIVE and DETAILED - extract ALL important information from the document
+- Include ALL key concepts, definitions, formulas, data points, and facts
+- Organize content with clear hierarchical headings (# for main title, ## for sections, ### for subsections)
+- Preserve important details like:
+  * Numerical data, statistics, and measurements
+  * Definitions and technical terms
+  * Formulas, equations, and mathematical expressions
+  * Lists of items, steps, or procedures
+  * Tables and structured data (format as markdown tables)
+  * Examples and case studies
+  * Dates, names, and specific references
+- Use proper formatting:
+  * **Bold** for key terms and important concepts
+  * *Italic* for emphasis
+  * Code blocks (backticks) for technical terms or code
+  * > Blockquotes for important quotes or definitions
+  * Bullet points and numbered lists for organized information
+- Maintain logical flow and structure
+- Be accurate and faithful to the source material - do not add information that isn't in the document
+- For longer documents, create multiple detailed sections rather than brief summaries
+
 Example:
 EDITOR_CONTENT:
-# Document Summary
-## Key Points
-- Point 1
-- Point 2
+# Document Summary: [Document Title]
+
+## Overview
+[Comprehensive overview paragraph covering main topics]
+
+## Section 1: [Topic Name]
+### Key Concepts
+- **Concept 1**: Detailed explanation with relevant data
+- **Concept 2**: Complete description including formulas or examples
+
+### Important Details
+[All relevant information organized clearly]
+
+## Section 2: [Next Topic]
+[Continue with thorough coverage of all content]
 
 GENERAL QUESTIONS:
 If the user asks a general question not related to generating a lesson or summarizing documents, answer concisely in Markdown.
+
+IMPORTANT: When documents are uploaded, they are the SINGLE SOURCE OF TRUTH for document-related questions. For general knowledge questions not about the documents, you may use your training data. Always be clear about what source you're using.
+
 Prefer the following when appropriate:
 - Use headings (#, ##) for sections.
 - Use bold (**) for key terms.
@@ -226,7 +270,7 @@ export async function POST(req: NextRequest) {
         
         // Query with RAG
         const ragResult = await answerQuestionWithRAG(userId, userQuestion, {
-          k: 8, // Retrieve more chunks for comprehensive answers
+          k: 15, // Retrieve more chunks for comprehensive and detailed answers/summaries
           includeScores: true,
         });
 
@@ -321,6 +365,21 @@ export async function POST(req: NextRequest) {
           );
         } else {
           console.log("RAG found no relevant sources, falling back to standard Gemini");
+          // If documents were just uploaded/indexed but RAG found nothing, warn the user
+          if (documentIndexed) {
+            return new Response(
+              JSON.stringify({ 
+                role: "assistant", 
+                content: "⚠️ I couldn't find relevant information in your uploaded document(s) to answer this question. The document may not contain this information, or it may need to be rephrased. Please try:\n\n1. Asking about content that's actually in the document\n2. Using different keywords\n3. Being more specific about what section or topic you're interested in\n\nWhat would you like to know about your document?",
+                ragUsed: true,
+                sourceCount: 0,
+              }), 
+              {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+              }
+            );
+          }
         }
       } catch (ragErr) {
         console.error('RAG query failed:', ragErr);
@@ -332,6 +391,11 @@ export async function POST(req: NextRequest) {
     // FALLBACK: Standard Gemini (no RAG)
     // ========================================
     console.log("Using standard Gemini (RAG not used or unavailable)");
+    
+    // Warn if documents were uploaded but we're not using RAG
+    if (atts.length > 0 && !chromaAvailable) {
+      console.warn("Documents uploaded but Chroma is not available - cannot use as single source of truth");
+    }
 
     // Map only prior messages to Gemini roles
     const history = msgs.slice(0, -1).map((m) => ({

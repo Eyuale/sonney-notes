@@ -36,13 +36,43 @@ Context from the user's documents:
 
 Question: {question}
 
-Instructions:
-- Answer the question using ONLY the information from the context above
-- If the context doesn't contain enough information to answer the question, say so clearly
+CRITICAL INSTRUCTIONS - SINGLE SOURCE OF TRUTH:
+- The uploaded documents are the SINGLE SOURCE OF TRUTH
+- Answer EXCLUSIVELY using information from the context above
+- DO NOT add any information from your training data or general knowledge
+- DO NOT make assumptions or inferences beyond what is explicitly stated in the documents
+- If the context doesn't contain the information needed to answer, explicitly state: "This information is not available in your uploaded document(s)."
+- DO NOT say "based on general knowledge" or reference external sources
 - Be specific and cite relevant parts of the context when possible
 - If asked about a specific unit, chapter, or section, focus on that part of the context
-- If asked for a summary, overview, or to display content on the canvas/editor, start your response with "EDITOR_CONTENT:" followed by well-formatted Markdown
-- Otherwise, format your answer in clear, well-structured Markdown for the chat panel
+- Your role is to extract and present information FROM THE DOCUMENTS ONLY, not to supplement it
+
+FOR SUMMARIES AND OVERVIEWS:
+When asked to summarize, provide an overview, or display content on the canvas/editor:
+- Start your response with "EDITOR_CONTENT:" followed by well-formatted Markdown
+- Be COMPREHENSIVE and DETAILED - extract ALL important information from the context
+- Include ALL key concepts, definitions, formulas, data points, and specific facts
+- Organize with clear hierarchical structure (# main title, ## sections, ### subsections)
+- Preserve ALL important details:
+  * Numerical data, statistics, measurements, and percentages
+  * Definitions and technical terminology
+  * Formulas, equations, and mathematical expressions
+  * Complete lists, steps, and procedures
+  * Tables and structured data (use markdown table format)
+  * Examples, case studies, and illustrations
+  * Dates, names, locations, and specific references
+- Use rich formatting:
+  * **Bold** for key terms and critical concepts
+  * *Italic* for emphasis and important points
+  * Code blocks (backticks) for technical terms, variables, or code
+  * > Blockquotes for important quotes or definitions
+  * Proper lists (bullet points and numbered lists)
+- Maintain logical flow and accurate representation of the source
+- For extensive content, create multiple detailed sections rather than condensing
+- DO NOT skip or abbreviate important information
+
+FOR OTHER QUESTIONS:
+Format your answer in clear, well-structured Markdown for the chat panel
 
 Answer:`;
 
@@ -55,6 +85,8 @@ Context:
 {context}
 
 Question: {question}
+
+CRITICAL: The uploaded documents are the SINGLE SOURCE OF TRUTH. Answer using ONLY information from the context above. DO NOT add information from your training data or general knowledge. If the information is not in the context, say "This information is not available in your uploaded document(s)."
 
 Answer:`;
 
@@ -81,7 +113,7 @@ async function createRAGChain() {
   const model = new ChatGoogleGenerativeAI({
     apiKey: GOOGLE_API_KEY,
     model: MODEL_NAME,
-    temperature: 0.3, // Lower temperature for more factual responses
+    temperature: 0.1, // Very low temperature for maximum factual accuracy from documents
   });
 
   const prompt = PromptTemplate.fromTemplate(RAG_PROMPT_TEMPLATE);
@@ -112,7 +144,8 @@ export async function answerQuestionWithRAG(
   sources: Document[];
   scores?: number[];
 }> {
-  const { k = 4, includeScores = false, filter } = options;
+  // Use more chunks for better coverage, especially for summaries
+  const { k = 10, includeScores = false, filter } = options;
 
   // Retrieve relevant documents
   let sources: Document[];
@@ -162,7 +195,7 @@ export async function answerQuestionSimple(
   question: string,
   options: { k?: number } = {}
 ): Promise<string> {
-  const { k = 4 } = options;
+  const { k = 10 } = options;
 
   const sources = await searchDocuments(userId, question, { k });
 
@@ -175,7 +208,7 @@ export async function answerQuestionSimple(
   const model = new ChatGoogleGenerativeAI({
     apiKey: GOOGLE_API_KEY!,
     model: MODEL_NAME,
-    temperature: 0.3,
+    temperature: 0.1, // Very low temperature for maximum factual accuracy from documents
   });
 
   const prompt = PromptTemplate.fromTemplate(SIMPLE_RAG_PROMPT_TEMPLATE);
@@ -202,7 +235,12 @@ export function shouldUseRAG(question: string): boolean {
     'what does',
     'explain',
     'summarize',
+    'summary',
+    'overview',
     'tell me about',
+    'attachment',
+    'my file',
+    'uploaded',
     'unit',
     'chapter',
     'section',
