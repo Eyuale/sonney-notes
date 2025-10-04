@@ -233,7 +233,7 @@ export function ChatPanel({ onLessonDoc }: { onLessonDoc?: (doc: TiptapDoc) => v
   }
 
   // Helper function for sending messages (used by both text and voice)
-  async function sendMessage(text: string, isVoiceChat = false) {
+  async function sendMessage(text: string, isVoiceChat = false, skipTTS = false) {
     setError(null)
     const userMsg = { id: crypto.randomUUID(), role: "user" as const, content: text }
     const nextMessages = [...messages, userMsg]
@@ -332,8 +332,8 @@ export function ChatPanel({ onLessonDoc }: { onLessonDoc?: (doc: TiptapDoc) => v
         }, 1000); // Small delay to let user see the acknowledgment
       }
 
-      // Always speak the response using TTS (voice + text on screen)
-      if (assistantResponse) {
+      // Always speak the response using TTS (voice + text on screen) unless skipped
+      if (assistantResponse && !skipTTS) {
         speakResponse(assistantResponse);
       }
     } catch (e: unknown) {
@@ -364,11 +364,39 @@ export function ChatPanel({ onLessonDoc }: { onLessonDoc?: (doc: TiptapDoc) => v
   async function handleTeachingRequest(originalPrompt: string) {
     setIsGeneratingLesson(true);
     try {
+      // First, speak an introduction about what we're creating
+      const introText = `I'm creating a comprehensive lesson about ${extractTopicFromPrompt(originalPrompt)}. This will appear in the editor for you to study.`;
+      speakResponse(introText);
+      
+      // Wait a moment for the introduction to start playing
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
       // Send the original prompt to the full chat API for detailed teaching
-      await sendMessage(originalPrompt, false); // Use full chat endpoint
+      // Don't speak the lesson content - it's too long and causes repetition
+      await sendMessage(originalPrompt, false, true); // Use full chat endpoint, skip TTS
+      
+      // Add a message to the chat history so the voice system knows about the lesson
+      const lessonAckMessage = {
+        id: crypto.randomUUID(),
+        role: "assistant" as const,
+        content: `I've created a comprehensive lesson about ${extractTopicFromPrompt(originalPrompt)}. You can now ask me questions about it!`
+      };
+      setMessages((m) => [...m, lessonAckMessage]);
+      
     } finally {
       setIsGeneratingLesson(false);
     }
+  }
+  
+  // Helper function to extract topic from prompt
+  function extractTopicFromPrompt(prompt: string): string {
+    // Remove common teaching phrases to get the core topic
+    const cleaned = prompt
+      .replace(/^(teach me about|show me|explain|create a lesson about|generate content about)\s+/i, '')
+      .replace(/\s+(please|in detail|comprehensively)$/i, '')
+      .trim();
+    
+    return cleaned || 'this topic';
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {

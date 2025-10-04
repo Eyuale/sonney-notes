@@ -487,11 +487,11 @@ export function useVoiceChatWS(options: UseVoiceChatWSOptions = {}) {
              await audio.play();
              console.log('🔊 Audio play() succeeded');
              break;
-           } catch (playError: any) {
+           } catch (playError: unknown) {
              retryCount++;
              console.error(`Audio play() failed (attempt ${retryCount}):`, playError);
              
-             if (playError.name === 'AbortError') {
+             if (playError instanceof Error && playError.name === 'AbortError') {
                console.log('🛑 Audio play was aborted, retrying...');
                if (retryCount < maxRetries) {
                  // Wait a bit before retrying
@@ -633,8 +633,15 @@ export function useVoiceChatWS(options: UseVoiceChatWSOptions = {}) {
       return;
     }
     
-    // Add to queue
-    setTtsQueue(prev => [...prev, text]);
+    // Prevent duplicate text from being added to queue
+    setTtsQueue(prev => {
+      // Check if this text is already in the queue
+      if (prev.includes(text)) {
+        console.log('⚠️ Text already in TTS queue, skipping duplicate');
+        return prev;
+      }
+      return [...prev, text];
+    });
     
     // Process queue if not currently playing
     if (!isPlayingAudio) {
@@ -648,21 +655,46 @@ export function useVoiceChatWS(options: UseVoiceChatWSOptions = {}) {
       console.log('📤 Sending voice message:', message);
       setVoiceState("processing");
       
-      // Use HTTP API as fallback
-      const messagesToSend = [
-        ...messageHistoryRef.current,
-        { role: 'user', content: message }
-      ];
+      // Check if this is a follow-up question after a lesson was generated
+      // If so, use the full chat API for better context
+      const hasRecentLesson = messageHistoryRef.current.some(msg => 
+        msg.role === 'assistant' && 
+        (msg.content.includes('lesson') || msg.content.includes('created') || msg.content.includes('generated'))
+      );
       
-      console.log('📤 Sending messages to API:', messagesToSend);
-      
-      const response = await fetch('/api/voice-chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          messages: messagesToSend
-        }),
-      });
+      let response;
+      if (hasRecentLesson) {
+        console.log('📚 Detected follow-up question after lesson, using full chat API');
+        // Use full chat API for better context
+        const messagesToSend = [
+          ...messageHistoryRef.current,
+          { role: 'user', content: message }
+        ];
+        
+        response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            messages: messagesToSend
+          }),
+        });
+      } else {
+        // Use voice chat API for regular questions
+        const messagesToSend = [
+          ...messageHistoryRef.current,
+          { role: 'user', content: message }
+        ];
+        
+        console.log('📤 Sending messages to voice API:', messagesToSend);
+        
+        response = await fetch('/api/voice-chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            messages: messagesToSend
+          }),
+        });
+      }
 
       if (!response.ok) {
         throw new Error(`Voice chat request failed: ${response.status} ${response.statusText}`);
@@ -671,7 +703,14 @@ export function useVoiceChatWS(options: UseVoiceChatWSOptions = {}) {
       const data = await response.json();
       
       // Handle response with proper TTS synchronization
-      const responseText = data.content;
+      let responseText;
+      if (hasRecentLesson) {
+        // Full chat API response format
+        responseText = data.content || data.message || 'No response received';
+      } else {
+        // Voice chat API response format
+        responseText = data.content;
+      }
       
       // Start TTS first, then sync text display with voice progress
       const ttsPromise = speakResponseInternal(responseText, (progress) => {
@@ -703,15 +742,10 @@ export function useVoiceChatWS(options: UseVoiceChatWSOptions = {}) {
         messageHistoryRef.current = messageHistoryRef.current.slice(-10);
       }
       
-      // Handle teaching requests
-      if (data.teachingRequest && data.originalPrompt) {
+      // Handle teaching requests (only for voice chat API)
+      if (!hasRecentLesson && data.teachingRequest && data.originalPrompt) {
         console.log('📚 Teaching request detected via HTTP:', data.originalPrompt);
         options.onTeachingRequest?.(data.originalPrompt);
-      }
-      
-      // Speak the response
-      if (data.content) {
-        speakResponseInternal(data.content);
       }
       
     } catch (error) {
