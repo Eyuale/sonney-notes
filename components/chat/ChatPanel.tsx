@@ -6,6 +6,7 @@ import { IconArrowUp, IconMicrophone, IconPaperclip } from "@tabler/icons-react"
 import { FileUploader, type UploadedFile, type UploadProgress } from "@/components/file-uploader"
 import { tryParseBlueprint, blueprintToTiptapDoc, markdownToNodes, type TiptapDoc, type LessonBlueprint } from "@/lib/lesson-mapper"
 import AssistantMessage from "./AssistantMessage"
+import { useVoiceChatWS } from "@/hooks/use-voice-chat-ws"
 
 export function ChatPanel({ onLessonDoc }: { onLessonDoc?: (doc: TiptapDoc) => void }) {
   type ChatMsg = { id: string; role: "user" | "assistant"; content: string }
@@ -40,6 +41,67 @@ export function ChatPanel({ onLessonDoc }: { onLessonDoc?: (doc: TiptapDoc) => v
   const [attachments, setAttachments] = useState<UploadedFile[]>([])
   const [uploadingFiles, setUploadingFiles] = useState<UploadProgress[]>([])
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [isGeneratingLesson, setIsGeneratingLesson] = useState(false)
+
+  // Voice chat integration - WebSocket version for real-time
+  const {
+    voiceState,
+    isListening,
+    isConnected: isVoiceConnected,
+    toggleRecording,
+    speakResponse,
+  } = useVoiceChatWS({
+    continuousMode: true, // Enable continuous recording
+    onTranscript: (text) => {
+      // Update the last user message with real-time transcript
+      setMessages((m) => {
+        const lastMessage = m[m.length - 1];
+        if (lastMessage && lastMessage.role === "user" && lastMessage.content.startsWith("🎤 ")) {
+          // Update existing voice message
+          return [
+            ...m.slice(0, -1),
+            { ...lastMessage, content: `🎤 ${text}` }
+          ];
+        } else {
+          // Create new voice message
+          return [
+            ...m,
+            { id: crypto.randomUUID(), role: "user" as const, content: `🎤 ${text}` },
+          ];
+        }
+      });
+      // Clear the input field since we're showing it as a message
+      setInput("");
+    },
+    onResponse: (text) => {
+      // Update the last assistant message with synchronized text
+      setMessages((m) => {
+        const lastMessage = m[m.length - 1];
+        if (lastMessage && lastMessage.role === "assistant" && 
+            (lastMessage.content.startsWith("🤖 ") || lastMessage.content.startsWith("🎤 "))) {
+          // Update existing assistant message
+          return [
+            ...m.slice(0, -1),
+            { ...lastMessage, content: `🤖 ${text}` }
+          ];
+        } else {
+          // Create new assistant message
+          return [
+            ...m,
+            { id: crypto.randomUUID(), role: "assistant" as const, content: `🤖 ${text}` },
+          ];
+        }
+      });
+    },
+    onTeachingRequest: (originalPrompt) => {
+      // Handle teaching request - send to full chat API
+      console.log('📚 Teaching request detected, routing to editor:', originalPrompt);
+      handleTeachingRequest(originalPrompt);
+    },
+    onError: (err) => {
+      setError(err);
+    },
+  });
 
   const handleUploadProgress = (progress: UploadProgress) => {
     setUploadingFiles(prev => {
@@ -167,6 +229,11 @@ export function ChatPanel({ onLessonDoc }: { onLessonDoc?: (doc: TiptapDoc) => v
   async function send() {
     const text = input.trim()
     if (!text) return
+    await sendMessage(text)
+  }
+
+  // Helper function for sending messages (used by both text and voice)
+  async function sendMessage(text: string, isVoiceChat = false) {
     setError(null)
     const userMsg = { id: crypto.randomUUID(), role: "user" as const, content: text }
     const nextMessages = [...messages, userMsg]
@@ -175,7 +242,9 @@ export function ChatPanel({ onLessonDoc }: { onLessonDoc?: (doc: TiptapDoc) => v
     setIsTyping(true)
 
     try {
-      const res = await fetch("/api/chat", {
+      // Use optimized voice chat endpoint for voice interactions
+      const endpoint = isVoiceChat ? "/api/voice-chat" : "/api/chat";
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: nextMessages, attachments }),
@@ -200,13 +269,16 @@ export function ChatPanel({ onLessonDoc }: { onLessonDoc?: (doc: TiptapDoc) => v
 
       const data: ChatAPIResponse = await res.json()
 
+      let assistantResponse = "";
+
       if ("type" in data && data.type === "blueprint") {
         // Server provided a structured blueprint and a friendly chat summary
         const doc = blueprintToTiptapDoc(data.blueprint)
         onLessonDoc?.(doc)
+        assistantResponse = data.chat;
         setMessages((m) => [
           ...m,
-          { id: crypto.randomUUID(), role: "assistant" as const, content: data.chat },
+          { id: crypto.randomUUID(), role: "assistant" as const, content: assistantResponse },
         ])
         // refresh history silently
         fetchHistory().catch(() => {})
@@ -215,9 +287,10 @@ export function ChatPanel({ onLessonDoc }: { onLessonDoc?: (doc: TiptapDoc) => v
         const nodes = markdownToNodes(data.content)
         const doc: TiptapDoc = { type: "doc", content: nodes }
         onLessonDoc?.(doc)
+        assistantResponse = data.chat;
         setMessages((m) => [
           ...m,
-          { id: crypto.randomUUID(), role: "assistant" as const, content: data.chat },
+          { id: crypto.randomUUID(), role: "assistant" as const, content: assistantResponse },
         ])
         // refresh history silently
         fetchHistory().catch(() => {})
@@ -227,24 +300,41 @@ export function ChatPanel({ onLessonDoc }: { onLessonDoc?: (doc: TiptapDoc) => v
         if (blueprint) {
           const doc = blueprintToTiptapDoc(blueprint)
           onLessonDoc?.(doc)
+          assistantResponse = "Lesson generated and added to the canvas.";
           setMessages((m) => [
             ...m,
-            { id: crypto.randomUUID(), role: "assistant" as const, content: "Lesson generated and added to the canvas." },
+            { id: crypto.randomUUID(), role: "assistant" as const, content: assistantResponse },
           ])
           fetchHistory().catch(() => {})
         } else {
+          assistantResponse = data.content;
           setMessages((m) => [
             ...m,
-            { id: crypto.randomUUID(), role: "assistant" as const, content: data.content },
+            { id: crypto.randomUUID(), role: "assistant" as const, content: assistantResponse },
           ])
           fetchHistory().catch(() => {})
         }
       } else {
         // Unexpected shape; be defensive
+        assistantResponse = "Sorry, I couldn't understand the server response.";
         setMessages((m) => [
           ...m,
-          { id: crypto.randomUUID(), role: "assistant" as const, content: "Sorry, I couldn't understand the server response." },
+          { id: crypto.randomUUID(), role: "assistant" as const, content: assistantResponse },
         ])
+      }
+
+      // Check if this is a teaching request from voice chat
+      if ('teachingRequest' in data && data.teachingRequest && 'originalPrompt' in data && data.originalPrompt) {
+        // Handle teaching request - send to full chat API
+        console.log('📚 Teaching request detected, routing to editor:', data.originalPrompt);
+        setTimeout(() => {
+          handleTeachingRequest(String(data.originalPrompt));
+        }, 1000); // Small delay to let user see the acknowledgment
+      }
+
+      // Always speak the response using TTS (voice + text on screen)
+      if (assistantResponse) {
+        speakResponse(assistantResponse);
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Something went wrong"
@@ -260,6 +350,24 @@ export function ChatPanel({ onLessonDoc }: { onLessonDoc?: (doc: TiptapDoc) => v
       // Clear attachments and uploading files after sending
       setAttachments([])
       setUploadingFiles([])
+    }
+  }
+
+  // Send message with transcript (triggered by voice) - WebSocket handles this automatically
+  // This function is kept for compatibility but not used in WebSocket version
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async function sendWithTranscript(text: string) {
+    console.log('📝 Voice transcript (WebSocket handled):', text);
+  }
+
+  // Handle teaching requests from voice chat
+  async function handleTeachingRequest(originalPrompt: string) {
+    setIsGeneratingLesson(true);
+    try {
+      // Send the original prompt to the full chat API for detailed teaching
+      await sendMessage(originalPrompt, false); // Use full chat endpoint
+    } finally {
+      setIsGeneratingLesson(false);
     }
   }
 
@@ -505,6 +613,49 @@ export function ChatPanel({ onLessonDoc }: { onLessonDoc?: (doc: TiptapDoc) => v
             <div className="bubble">Typing…</div>
           </div>
         )}
+        {/* Voice status indicators */}
+        {!isVoiceConnected && (
+          <div className="chat-msg assistant">
+            <div className="bubble voice-status">
+              🔌 Connecting to voice chat...
+            </div>
+          </div>
+        )}
+        {isListening && voiceState !== "speaking" && (
+          <div className="chat-msg assistant">
+            <div className="bubble voice-status">
+              🎤 Continuous listening... Speak anytime (auto-processes after 1.5s silence)
+            </div>
+          </div>
+        )}
+        {isListening && voiceState === "speaking" && (
+          <div className="chat-msg assistant">
+            <div className="bubble voice-status">
+              🎤 Listening paused... (AI is speaking to prevent feedback)
+            </div>
+          </div>
+        )}
+        {voiceState === "processing" && (
+          <div className="chat-msg assistant">
+            <div className="bubble voice-status">
+              ⚡ Processing audio... (real-time)
+            </div>
+          </div>
+        )}
+        {voiceState === "speaking" && (
+          <div className="chat-msg assistant">
+            <div className="bubble voice-status">
+              🔊 Speaking... (Microphone muted to prevent feedback)
+            </div>
+          </div>
+        )}
+        {isGeneratingLesson && (
+          <div className="chat-msg assistant">
+            <div className="bubble voice-status">
+              📚 Generating detailed lesson... This will appear in the editor
+            </div>
+          </div>
+        )}
         <div ref={endRef} />
       </div>
 
@@ -562,9 +713,16 @@ export function ChatPanel({ onLessonDoc }: { onLessonDoc?: (doc: TiptapDoc) => v
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={onKeyDown}
-            placeholder={attachments.length > 0 ? "Add your message..." : "Learn something new"}
+            placeholder={
+              isListening 
+                ? "🎤 Listening... Speak now" 
+                : attachments.length > 0 
+                  ? "Add your message..." 
+                  : "Learn something new"
+            }
             aria-label="Chat prompt"
             style={{ flex: 1 }}
+            disabled={isListening}
           />
           <div className="chat-panel-input-button-groups">
             <FileUploader
@@ -589,12 +747,31 @@ export function ChatPanel({ onLessonDoc }: { onLessonDoc?: (doc: TiptapDoc) => v
               </button>
             </FileUploader>
             <div className="senders">
-              <button className="icon-btn" title="Voice">
-                <IconMicrophone size={16}/>
-              </button>
-              <button className="send-btn" onClick={send} aria-label="Send" disabled={isTyping || uploadingFiles.length > 0}>
-                <IconArrowUp size={16}/>
-              </button>
+              {/* Voice button - always visible when not typing */}
+              {!isTyping && (
+                <button 
+                  className={`send-btn ${isListening ? 'recording' : ''}`}
+                  onClick={toggleRecording} 
+                  aria-label={isListening ? "Stop continuous recording" : "Start voice input"}
+                  disabled={uploadingFiles.length > 0 || voiceState === "processing" || voiceState === "speaking"}
+                  title={isListening ? "Stop continuous recording" : "Start continuous voice input"}
+                >
+                  <IconMicrophone size={16}/>
+                </button>
+              )}
+              
+              {/* Send button - only when there's text and not listening */}
+              {input.trim().length > 0 && !isListening && (
+                <button 
+                  className="send-btn" 
+                  onClick={send} 
+                  aria-label="Send" 
+                  disabled={isTyping || uploadingFiles.length > 0}
+                  title="Send message"
+                >
+                  <IconArrowUp size={16}/>
+                </button>
+              )}
             </div>
           </div>
         </div>

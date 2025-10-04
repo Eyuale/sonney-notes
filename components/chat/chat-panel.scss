@@ -150,6 +150,30 @@
   color: var(--color-on-primary, #fff);
   border-color: color-mix(in oklab, var(--color-primary) 80%, white 20%);
   box-shadow: 0 6px 14px color-mix(in oklab, var(--color-primary) 70%, transparent 30% / 0.35);
+  transition: all 0.2s ease;
+}
+
+.chat-panel .send-btn.recording {
+  background: #ef4444;
+  border-color: #dc2626;
+  animation: pulse-recording 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-recording {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 6px 14px rgba(239, 68, 68, 0.5);
+  }
+  50% {
+    opacity: 0.8;
+    box-shadow: 0 6px 20px rgba(239, 68, 68, 0.8);
+  }
+}
+
+.chat-panel .voice-status {
+  font-size: 13px;
+  font-style: italic;
+  color: var(--muted);
 }
 
 /* Optional Google Material Symbols for icons */
