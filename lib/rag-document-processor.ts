@@ -1,6 +1,5 @@
-// RAG Document Processor - Handles document processing and chunking for vector storage
-import { RecursiveCharacterTextSplitter } from 'langchain/text_splitter';
-import { Document } from 'langchain/document';
+import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
+import { Document } from '@langchain/core/documents';
 import { extractTextFromPdfBuffer } from './pdf-extract';
 
 export interface ProcessedDocument {
@@ -35,7 +34,7 @@ async function extractTextFromDocument(
   filename: string
 ): Promise<{ text: string; type: string }> {
   const lowerFilename = filename.toLowerCase();
-  
+
   if (lowerFilename.endsWith('.pdf')) {
     const text = await extractTextFromPdfBuffer(buffer);
     return { text, type: 'pdf' };
