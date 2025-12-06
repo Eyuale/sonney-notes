@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Script from "next/script";
+import Link from "next/link";
 import { Geist, Geist_Mono, IBM_Plex_Sans } from "next/font/google";
 import "./globals.css";
 import "../styles/_variables.scss";
@@ -55,7 +56,7 @@ export default function RootLayout({
           >
             <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
               <div style={{ fontWeight: 600 }}>Lesson Builder</div>
-              <a href="/marketplace" style={{ fontSize: "0.875rem", textDecoration: "none", color: "inherit", opacity: 0.8 }}>Marketplace</a>
+              <Link href="/marketplace" style={{ fontSize: "0.875rem", textDecoration: "none", color: "inherit", opacity: 0.8 }}>Marketplace</Link>
             </div>
             <UserMenu />
           </header>

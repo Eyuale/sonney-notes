@@ -3,7 +3,7 @@ import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { PromptTemplate } from '@langchain/core/prompts';
 import { RunnableSequence } from '@langchain/core/runnables';
 import { StringOutputParser } from '@langchain/core/output_parsers';
-import { Document } from 'langchain/document';
+import { Document } from '@langchain/core/documents';
 import { searchDocuments, searchDocumentsWithScore } from './rag-vector-store';
 
 const GOOGLE_API_KEY = process.env.GOOGLE_GENERATIVE_AI_API_KEY;

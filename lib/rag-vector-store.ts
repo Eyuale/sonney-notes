@@ -1,6 +1,6 @@
 // RAG Vector Store - Manages embeddings and vector storage using Chroma
 import { Chroma } from '@langchain/community/vectorstores/chroma';
-import { Document } from 'langchain/document';
+import { Document } from '@langchain/core/documents';
 import { ChromaClient } from 'chromadb';
 import { LocalEmbeddings } from './rag-embeddings';
 
@@ -12,7 +12,7 @@ const CHROMA_URL = process.env.CHROMA_URL || 'http://localhost:8000';
  */
 function getEmbeddings() {
   console.log('💻 Using LOCAL embeddings (offline, no API needed)');
-  
+
   return new LocalEmbeddings({
     modelName: 'Xenova/all-MiniLM-L6-v2', // Runs locally, no API calls!
   });
@@ -55,7 +55,7 @@ export async function addDocumentsToVectorStore(
   metadata?: Record<string, unknown>
 ): Promise<{ count: number; collectionName: string }> {
   const vectorStore = await createVectorStore(userId);
-  
+
   // Add metadata to each document
   const docsWithMetadata = documents.map((doc) => ({
     ...doc,
@@ -89,7 +89,7 @@ export async function searchDocuments(
   const { k = 4, filter } = options;
   const vectorStore = await createVectorStore(userId);
 
-  const results = await vectorStore.similaritySearch(query, k, filter);
+  const results = await vectorStore.similaritySearch(query, k, filter as any);
   return results;
 }
 
@@ -108,8 +108,8 @@ export async function searchDocumentsWithScore(
   const { k = 4, filter, scoreThreshold = 0.5 } = options;
   const vectorStore = await createVectorStore(userId);
 
-  const results = await vectorStore.similaritySearchWithScore(query, k, filter);
-  
+  const results = await vectorStore.similaritySearchWithScore(query, k, filter as any);
+
   // Filter by score threshold and format results
   return results
     .filter(([, score]) => score >= scoreThreshold)
