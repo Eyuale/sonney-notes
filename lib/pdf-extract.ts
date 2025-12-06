@@ -22,22 +22,22 @@ export async function extractTextFromPdfBuffer(buffer: Buffer): Promise<string> 
   if (!buffer) return '';
 
   // 1) pdf-parse (internal implementation path avoids index.js side-effects)
+  try {
     try {
-      try {
-        const imported = await import('pdf-parse/lib/pdf-parse.js');
-        const pdfParse = (imported && (imported.default ?? imported)) as (
-          data: Buffer | Uint8Array | string
-        ) => Promise<any>;
-        if (typeof pdfParse === 'function') {
-          const r = await pdfParse(buffer as any);
-          const text = r && typeof r.text === 'string' ? String(r.text).trim() : '';
-          if (text && text.length > 200) {
-            return cleanPdfText(text);
-          }
+      const imported = await import('pdf-parse/lib/pdf-parse.js');
+      const pdfParse = (imported && (imported.default ?? imported)) as (
+        data: Buffer | Uint8Array | string
+      ) => Promise<any>;
+      if (typeof pdfParse === 'function') {
+        const r = await pdfParse(buffer as any);
+        const text = r && typeof r.text === 'string' ? String(r.text).trim() : '';
+        if (text && text.length > 200) {
+          return cleanPdfText(text);
         }
-      } catch {
-        // continue to fallback
       }
+    } catch {
+      // continue to fallback
+    }
 
     // 2) Fallback: pdfjs text extraction per page for better structure control
     try {
@@ -71,21 +71,21 @@ export async function extractTextFromPdfBuffer(buffer: Buffer): Promise<string> 
     // 3) OCR fallback: render pages to images and run tesseract.js (optional deps)
     try {
       // Dynamic import of heavy optional deps. Cast to unknown then any to avoid TS trying to resolve
-  const pdfjsModule = (await import('pdfjs-dist/legacy/build/pdf.js')) as unknown as any;
+      const pdfjsModule = (await import('pdfjs-dist/legacy/build/pdf.js')) as unknown as any;
 
       // Try to load node-canvas optionally
       let createCanvas: any = null;
       try {
-  const canvasModule = (await import('canvas')) as unknown as any;
-        createCanvas = canvasModule?.createCanvas ?? null;
+        // const canvasModule = (await import('canvas')) as unknown as any;
+        // createCanvas = canvasModule?.createCanvas ?? null;
+        createCanvas = null;
       } catch {
         createCanvas = null;
       }
 
-      // Try to load tesseract.js optionally
       let tesseractModule: any = null;
       try {
-  tesseractModule = (await import('tesseract.js')) as unknown as any;
+        tesseractModule = (await import('tesseract.js')) as unknown as any;
       } catch {
         tesseractModule = null;
       }
