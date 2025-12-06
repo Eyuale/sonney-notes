@@ -1,50 +1,75 @@
 @import "tailwindcss";
 
-:root {
-  /* Light mode mapped to Material 3 expressive blue */
-  --background: var(--md-ref-palette-background, #ffffff);
-  --foreground: var(--md-ref-palette-on-surface, #1A1C1E);
-
-  --color-primary: var(--md-ref-palette-primary);
-  --color-on-primary: var(--md-ref-palette-on-primary);
-  --color-primary-container: var(--md-ref-palette-primary-container);
-  --color-on-primary-container: var(--md-ref-palette-on-primary-container);
-
-  --card-bg: var(--md-ref-palette-surface, #ffffff);
-  --card-border: var(--md-ref-palette-outline, #9AA6C1);
-  --cursor-color: var(--md-ref-palette-primary, #0B57D0);
-  --selection-color: rgba(11, 87, 208, 0.12);
-}
-
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-.dark {
-  /* Dark mode mapped to Material 3 expressive blue (dark tokens) */
-  --background: var(--md-ref-palette-background-dark, #0A0F1A);
-  --foreground: var(--md-ref-palette-on-surface-dark, #E6EEF9);
-
-  --color-primary: var(--md-ref-palette-primary-dark);
-  --color-on-primary: var(--md-ref-palette-on-primary-dark);
-  --color-primary-container: var(--md-ref-palette-primary-container-dark);
-  --color-on-primary-container: var(--md-ref-palette-on-primary-container-dark);
-
-  --card-bg: var(--md-ref-palette-surface-dark, #0F1720);
-  --card-border: var(--md-ref-palette-outline-dark, #46607A);
-  --cursor-color: var(--md-ref-palette-primary-dark, #9CC6FF);
-  --selection-color: rgba(156, 198, 255, 0.12);
+:root {
+  --background: hsl(0 0% 100%);
+  --foreground: hsl(222.2 84% 4.9%);
+  --card: hsl(0 0% 100%);
+  --card-foreground: hsl(222.2 84% 4.9%);
+  --popover: hsl(0 0% 100%);
+  --popover-foreground: hsl(222.2 84% 4.9%);
+  --primary: hsl(221.2 83.2% 53.3%);
+  --primary-foreground: hsl(210 40% 98%);
+  --secondary: hsl(210 40% 96.1%);
+  --secondary-foreground: hsl(222.2 47.4% 11.2%);
+  --muted: hsl(210 40% 96.1%);
+  --muted-foreground: hsl(215.4 16.3% 46.9%);
+  --accent: hsl(210 40% 96.1%);
+  --accent-foreground: hsl(222.2 47.4% 11.2%);
+  --destructive: hsl(0 84.2% 60.2%);
+  --destructive-foreground: hsl(210 40% 98%);
+  --border: hsl(214.3 31.8% 91.4%);
+  --input: hsl(214.3 31.8% 91.4%);
+  --ring: hsl(221.2 83.2% 53.3%);
+  --radius: 0.5rem;
 }
 
-/* Keep the media query as a fallback */
-@media (prefers-color-scheme: dark) {
-  :root:not(.light) {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+.dark {
+  --background: hsl(222.2 84% 4.9%);
+  --foreground: hsl(210 40% 98%);
+  --card: hsl(222.2 84% 4.9%);
+  --card-foreground: hsl(210 40% 98%);
+  --popover: hsl(222.2 84% 4.9%);
+  --popover-foreground: hsl(210 40% 98%);
+  --primary: hsl(217.2 91.2% 59.8%);
+  --primary-foreground: hsl(222.2 47.4% 11.2%);
+  --secondary: hsl(217.2 32.6% 17.5%);
+  --secondary-foreground: hsl(210 40% 98%);
+  --muted: hsl(217.2 32.6% 17.5%);
+  --muted-foreground: hsl(215 20.2% 65.1%);
+  --accent: hsl(217.2 32.6% 17.5%);
+  --accent-foreground: hsl(210 40% 98%);
+  --destructive: hsl(0 62.8% 30.6%);
+  --destructive-foreground: hsl(210 40% 98%);
+  --border: hsl(217.2 32.6% 17.5%);
+  --input: hsl(217.2 32.6% 17.5%);
+  --ring: hsl(224.3 76.3% 48%);
 }
 
 html {

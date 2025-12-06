@@ -1,33 +1,15 @@
-"use client";
-
-import { SimpleEditor } from "@/components/tiptap-templates/simple/simple-editor"
-import { ChatPanel } from "@/components/chat/ChatPanel"
-import { ResizableSplit } from "@/components/layout/ResizableSplit"
-import * as React from "react"
-import type { Editor } from "@tiptap/core"
-import type { TiptapDoc } from "@/lib/lesson-mapper"
+import { Hero } from "@/components/landing/Hero";
+import { Features } from "@/components/landing/Features";
+import { PreviewSection } from "@/components/landing/PreviewSection";
+import { Footer } from "@/components/landing/Footer";
 
 export default function Home() {
-  const [editor, setEditor] = React.useState<Editor | null>(null)
-
-  function handleLessonDocInsert(doc: TiptapDoc) {
-    if (!editor) return
-    // Replace the entire document with the generated lesson blueprint
-    editor.commands.setContent(doc, { emitUpdate: false })
-    editor.commands.focus("start")
-  }
-
   return (
-    <ResizableSplit
-      left={
-        <>
-          <SimpleEditor onEditorReady={setEditor} />
-        </>
-      }
-      right={<ChatPanel onLessonDoc={handleLessonDocInsert} />}
-      defaultRightWidth={420}
-      minRightWidth={360}
-      maxRightWidth={560}
-    />
-  )
+    <main className="flex min-h-screen flex-col items-center justify-between">
+      <Hero />
+      <Features />
+      <PreviewSection />
+      <Footer />
+    </main>
+  );
 }

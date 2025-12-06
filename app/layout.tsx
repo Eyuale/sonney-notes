@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
-import Script from "next/script";
+
 import { Geist, Geist_Mono, IBM_Plex_Sans } from "next/font/google";
 import "./globals.css";
 import "../styles/_variables.scss";
 import "../styles/split-layout.scss";
 import Providers from "@/components/auth/Providers";
 import UserMenu from "@/components/auth/UserMenu";
+import { ThemeProvider } from "@/components/theme-provider";
+import { ModeToggle } from "@/components/mode-toggle";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -39,46 +41,35 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${ibmPlexSans.variable} antialiased`}
       >
-        <Providers>
-          <header
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              padding: "0.75rem 1rem",
-              borderBottom: "1px solid var(--tt-border-color, #e5e7eb)",
-              background: "var(--tt-sidebar-bg-color, var(--background))",
-              color: "var(--tt-header-foreground, var(--foreground, #1A1C1E))",
-              zIndex: 10,
-              flexShrink: 0,
-            }}
-          >
-            <div className="flex items-center gap-6">
-              <a href="/" style={{ fontWeight: 600, textDecoration: 'none', color: 'inherit' }}>Lesson Builder</a>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <Providers>
+            <header
+              className="flex justify-between items-center px-4 py-3 border-b border-border bg-background text-foreground z-10 shrink-0"
+            >
+              <div className="flex items-center gap-6">
+                <a href="/" style={{ fontWeight: 600, textDecoration: 'none', color: 'inherit' }}>Lesson Builder</a>
 
-              <nav className="hidden md:flex items-center gap-4 text-sm font-medium">
-                <a href="/marketplace" className="hover:text-blue-600 transition-colors">Marketplace</a>
-                <a href="/study-planner" className="hover:text-blue-600 transition-colors">Study Planner</a>
-              </nav>
-            </div>
+                <nav className="hidden md:flex items-center gap-4 text-sm font-medium">
+                  <a href="/marketplace" className="hover:text-blue-600 transition-colors">Marketplace</a>
+                  <a href="/study-planner" className="hover:text-blue-600 transition-colors">Study Planner</a>
+                </nav>
+              </div>
 
-            <UserMenu />
-          </header>
-          <main style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
-            <Script id="theme-init" strategy="beforeInteractive">
-              {`
-                try {
-                  const stored = localStorage.getItem('theme');
-                  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-                  const wantDark = stored ? stored === 'dark' : prefersDark;
-                  const root = document.documentElement;
-                  if (wantDark) root.classList.add('dark'); else root.classList.remove('dark');
-                } catch {}
-              `}
-            </Script>
-            {children}
-          </main>
-        </Providers>
+              <div className="flex items-center gap-4">
+                <ModeToggle />
+                <UserMenu />
+              </div>
+            </header>
+            <main style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+              {children}
+            </main>
+          </Providers>
+        </ThemeProvider>
       </body>
     </html>
   );

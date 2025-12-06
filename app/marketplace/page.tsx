@@ -15,13 +15,13 @@ export default async function MarketplacePage({
 
     return (
         <div className="container mx-auto py-8 px-4">
-            <h1 className="text-4xl font-extrabold text-center mb-2 text-gray-900">Lesson Marketplace</h1>
-            <p className="text-center text-gray-500 mb-8">Discover and share knowledge with the community.</p>
+            <h1 className="text-4xl font-extrabold text-center mb-2 text-foreground">Lesson Marketplace</h1>
+            <p className="text-center text-muted-foreground mb-8">Discover and share knowledge with the community.</p>
 
             <SearchInput />
 
             {listings.length === 0 ? (
-                <div className="text-center text-gray-400 mt-12">
+                <div className="text-center text-muted-foreground mt-12">
                     <p>No lessons found matching your criteria.</p>
                 </div>
             ) : (

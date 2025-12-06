@@ -1,9 +1,9 @@
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 
-export default function MockCheckoutPage() {
+function MockCheckoutContent() {
     const searchParams = useSearchParams();
     const router = useRouter();
     const sessionId = searchParams?.get('session_id');
@@ -30,5 +30,13 @@ export default function MockCheckoutPage() {
         <div className="flex items-center justify-center min-h-screen">
             <h1 className="text-2xl font-bold">{status}</h1>
         </div>
+    );
+}
+
+export default function MockCheckoutPage() {
+    return (
+        <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading...</div>}>
+            <MockCheckoutContent />
+        </Suspense>
     );
 }
