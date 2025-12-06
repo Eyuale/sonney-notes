@@ -1,3 +1,4 @@
+// RAG Document Processor - Handles document processing and chunking for vector storage (Updated imports)
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import { Document } from '@langchain/core/documents';
 import { extractTextFromPdfBuffer } from './pdf-extract';
@@ -142,4 +143,3 @@ export function extractChunkMetadata(chunk: Document): Record<string, unknown> {
     pageContent: chunk.pageContent,
   };
 }
-
