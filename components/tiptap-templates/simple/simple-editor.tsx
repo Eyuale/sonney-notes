@@ -14,6 +14,9 @@ import { Highlight } from "@tiptap/extension-highlight"
 import { Subscript } from "@tiptap/extension-subscript"
 import { Superscript } from "@tiptap/extension-superscript"
 import { Selection } from "@tiptap/extensions"
+import Collaboration from '@tiptap/extension-collaboration'
+import CollaborationCursor from '@tiptap/extension-collaboration-cursor'
+import { useEditorContext } from '@/components/editor/EditorProvider'
 
 // --- UI Primitives ---
 import { Button } from "@/components/tiptap-ui-primitive/button"
@@ -191,6 +194,8 @@ export function SimpleEditor({ onEditorReady }: { onEditorReady?: (editor: Edito
     "main" | "highlighter" | "link"
   >("main")
   const toolbarRef = React.useRef<HTMLDivElement>(null)
+  const { provider, ydoc } = useEditorContext()
+  const user = provider?.awareness.getLocalState()?.user;
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -231,7 +236,15 @@ export function SimpleEditor({ onEditorReady }: { onEditorReady?: (editor: Edito
         upload: handleImageUpload,
         onError: (error) => console.error("Upload failed:", error),
       }),
-    ],
+
+      provider && ydoc ? Collaboration.configure({
+        document: ydoc,
+      }) : undefined,
+      provider ? CollaborationCursor.configure({
+        provider,
+        user: user || { name: 'Anonymous', color: '#f783ac' },
+      }) : undefined,
+    ].filter(Boolean) as any,
     // content,
   })
 
@@ -259,8 +272,8 @@ export function SimpleEditor({ onEditorReady }: { onEditorReady?: (editor: Edito
           style={{
             ...(isMobile
               ? {
-                  bottom: `calc(100% - ${height - rect.y}px)`,
-                }
+                bottom: `calc(100% - ${height - rect.y}px)`,
+              }
               : {}),
           }}
         >
@@ -277,14 +290,14 @@ export function SimpleEditor({ onEditorReady }: { onEditorReady?: (editor: Edito
             />
           )}
 
-          
+
         </Toolbar>
 
         <EditorContent
           editor={editor}
           role="presentation"
           className="simple-editor-content"
-          
+
         />
       </EditorContext.Provider>
     </div>

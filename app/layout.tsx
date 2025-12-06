@@ -53,7 +53,15 @@ export default function RootLayout({
               flexShrink: 0,
             }}
           >
-            <div style={{ fontWeight: 600 }}>Lesson Builder</div>
+            <div className="flex items-center gap-6">
+              <a href="/" style={{ fontWeight: 600, textDecoration: 'none', color: 'inherit' }}>Lesson Builder</a>
+
+              <nav className="hidden md:flex items-center gap-4 text-sm font-medium">
+                <a href="/marketplace" className="hover:text-blue-600 transition-colors">Marketplace</a>
+                <a href="/study-planner" className="hover:text-blue-600 transition-colors">Study Planner</a>
+              </nav>
+            </div>
+
             <UserMenu />
           </header>
           <main style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
