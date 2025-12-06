@@ -76,11 +76,15 @@ import { QuizNode } from "@/components/tiptap-node/quiz-node/quiz-node-extension
 // --- Styles ---
 import "@/components/tiptap-templates/simple/simple-editor.scss"
 
+import { PublishModal } from "@/components/marketplace/PublishModal"
+
 const MainToolbarContent = ({
+  editor,
   onHighlighterClick,
   onLinkClick,
   isMobile,
 }: {
+  editor: Editor | null
   onHighlighterClick: () => void
   onLinkClick: () => void
   isMobile: boolean
@@ -144,6 +148,12 @@ const MainToolbarContent = ({
         <ImageUploadButton text="Add" />
       </ToolbarGroup>
 
+      <ToolbarSeparator />
+
+      <ToolbarGroup>
+        <PublishModal editor={editor} />
+      </ToolbarGroup>
+
       <Spacer />
 
       {isMobile && <ToolbarSeparator />}
@@ -184,7 +194,13 @@ const MobileToolbarContent = ({
   </>
 )
 
-export function SimpleEditor({ onEditorReady }: { onEditorReady?: (editor: Editor | null) => void }) {
+export interface SimpleEditorProps {
+  onEditorReady?: (editor: Editor | null) => void;
+  readOnly?: boolean;
+  initialContent?: any;
+}
+
+export function SimpleEditor({ onEditorReady, readOnly = false, initialContent }: SimpleEditorProps) {
   const isMobile = useIsMobile()
   const { height } = useWindowSize()
   const [mobileView, setMobileView] = React.useState<
@@ -195,6 +211,7 @@ export function SimpleEditor({ onEditorReady }: { onEditorReady?: (editor: Edito
   const editor = useEditor({
     immediatelyRender: false,
     shouldRerenderOnTransaction: false,
+    editable: !readOnly,
     editorProps: {
       attributes: {
         autocomplete: "off",
@@ -232,7 +249,7 @@ export function SimpleEditor({ onEditorReady }: { onEditorReady?: (editor: Edito
         onError: (error) => console.error("Upload failed:", error),
       }),
     ],
-    // content,
+    content: initialContent,
   })
 
   // Expose the editor to the parent when it becomes available
@@ -254,37 +271,39 @@ export function SimpleEditor({ onEditorReady }: { onEditorReady?: (editor: Edito
   return (
     <div className="prose dark:prose-invert simple-editor-wrapper">
       <EditorContext.Provider value={{ editor }}>
-        <Toolbar
-          ref={toolbarRef}
-          style={{
-            ...(isMobile
-              ? {
+        {!readOnly && (
+          <Toolbar
+            ref={toolbarRef}
+            style={{
+              ...(isMobile
+                ? {
                   bottom: `calc(100% - ${height - rect.y}px)`,
                 }
-              : {}),
-          }}
-        >
-          {mobileView === "main" ? (
-            <MainToolbarContent
-              onHighlighterClick={() => setMobileView("highlighter")}
-              onLinkClick={() => setMobileView("link")}
-              isMobile={isMobile}
-            />
-          ) : (
-            <MobileToolbarContent
-              type={mobileView === "highlighter" ? "highlighter" : "link"}
-              onBack={() => setMobileView("main")}
-            />
-          )}
+                : {}),
+            }}
+          >
+            {mobileView === "main" ? (
+              <MainToolbarContent
+                editor={editor}
+                onHighlighterClick={() => setMobileView("highlighter")}
+                onLinkClick={() => setMobileView("link")}
+                isMobile={isMobile}
+              />
+            ) : (
+              <MobileToolbarContent
+                type={mobileView === "highlighter" ? "highlighter" : "link"}
+                onBack={() => setMobileView("main")}
+              />
+            )}
 
-          
-        </Toolbar>
+          </Toolbar>
+        )}
 
         <EditorContent
           editor={editor}
           role="presentation"
           className="simple-editor-content"
-          
+
         />
       </EditorContext.Provider>
     </div>

@@ -53,7 +53,10 @@ export default function RootLayout({
               flexShrink: 0,
             }}
           >
-            <div style={{ fontWeight: 600 }}>Lesson Builder</div>
+            <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
+              <div style={{ fontWeight: 600 }}>Lesson Builder</div>
+              <a href="/marketplace" style={{ fontSize: "0.875rem", textDecoration: "none", color: "inherit", opacity: 0.8 }}>Marketplace</a>
+            </div>
             <UserMenu />
           </header>
           <main style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
