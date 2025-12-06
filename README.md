@@ -581,9 +581,9 @@ GOOGLE_GENERATIVE_AI_API_KEY=your_gemini_api_key_here
 # CHROMA_URL=http://localhost:8000
 ```
 
-## File Attachments (AWS S3 SSOT)
+## File Attachments (Google Cloud Storage SSOT)
 
-This project includes a comprehensive file attachment system that uses AWS S3 as a Single Source of Truth (SSOT) based on the file content hash (SHA-256). Files are stored under a deterministic key derived from their content hash to eliminate duplicates across users. Users link to the shared blob via metadata in MongoDB.
+This project includes a comprehensive file attachment system that uses Google Cloud Storage (GCS) as a Single Source of Truth (SSOT) based on the file content hash (SHA-256). Files are stored under a deterministic key derived from their content hash to eliminate duplicates across users. Users link to the shared blob via metadata in MongoDB.
 
 ### Features
 
@@ -597,8 +597,8 @@ This project includes a comprehensive file attachment system that uses AWS S3 as
 
 - `POST /api/files/presign`
   - Request: `{ filename, contentType, size, sha256Hex }`
-  - Response: `{ alreadyExists: boolean, uploadUrl?, key, bucket, region }`
-  - Behavior: If a blob with the same `sha256Hex` exists, returns `alreadyExists: true` and skips uploading. Otherwise, returns a presigned `PUT` URL for direct S3 upload.
+  - Response: `{ alreadyExists: boolean, uploadUrl?, key, bucket, region: "global" }`
+  - Behavior: If a blob with the same `sha256Hex` exists, returns `alreadyExists: true` and skips uploading. Otherwise, returns a presigned `PUT` URL for direct GCS upload.
 
 - `POST /api/files/confirm`
   - Request: `{ filename, contentType, size, sha256Hex, key }`
@@ -608,14 +608,14 @@ This project includes a comprehensive file attachment system that uses AWS S3 as
 - `GET /api/files`
   - Lists the current user's files from `user_files`.
 
-- `GET /api/files/get-url?key=<s3Key>`
+- `GET /api/files/get-url?key=<gcsKey>`
   - Returns a presigned GET URL for downloading/viewing the file.
 
 ### MongoDB Collections
 
 - `file_blobs` (SSOT)
   - `hash: string` (SHA-256 hex)
-  - `objectKey: string` (S3 key, e.g., `ssot/<sha256>`)
+  - `objectKey: string` (GCS key, e.g., `ssot/<sha256>`)
   - `size: number`
   - `contentType: string`
   - `createdAt: Date`
@@ -632,32 +632,37 @@ This project includes a comprehensive file attachment system that uses AWS S3 as
 ### Environment Variables (add to `.env.local`)
 
 ```
-# AWS S3
-AWS_REGION_NAME=us-east-1
-S3_BUCKET_NAME=your-bucket-name
+# Google Cloud Storage
+GCS_BUCKET_NAME=your-bucket-name
+GCP_PROJECT_ID=your-project-id
 
-# Ensure your server has AWS credentials for presigning
-AWS_ACCESS_KEY_ID_SECRET=your_access_key
-AWS_SECRET_ACCESS_KEY=your_secret_key
+# Service Account Credentials (if not using Application Default Credentials)
+GCP_CLIENT_EMAIL=your-service-account-email
+GCP_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n..."
 ```
 
-### S3 Bucket Configuration
+### GCS Bucket Configuration
 
-1. **CORS Configuration**: Add to your S3 bucket to allow browser uploads via presigned URLs:
+1. **CORS Configuration**: Configure CORS on your GCS bucket to allow browser uploads.
+   
+   Create a `cors.json` file:
+   ```json
+   [
+     {
+       "origin": ["http://localhost:3000", "https://your-domain.com"],
+       "method": ["GET", "PUT", "HEAD"],
+       "responseHeader": ["ETag", "Content-Length", "Content-Type", "Content-Disposition"],
+       "maxAgeSeconds": 3000
+     }
+   ]
+   ```
 
-```json
-[
-  {
-    "AllowedHeaders": ["*"],
-    "AllowedMethods": ["GET", "PUT", "HEAD"],
-    "AllowedOrigins": ["http://localhost:3000", "https://your-domain.com"],
-    "ExposeHeaders": ["ETag", "Content-Length", "Content-Type", "Content-Disposition"],
-    "MaxAgeSeconds": 3000
-  }
-]
-```
+   Apply it using `gcloud`:
+   ```bash
+   gcloud storage buckets update gs://your-bucket-name --cors-file=cors.json
+   ```
 
-2. **Bucket Policy**: Ensure your server has `s3:PutObject` and `s3:GetObject` permissions on the bucket.
+2. **Permissions**: Ensure your service account has `Storage Object Admin` or appropriate permissions on the bucket.
 
 ### File Support
 

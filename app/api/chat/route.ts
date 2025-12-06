@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { presignGetUrl } from "@/lib/s3";
+import { presignGetUrl } from "@/lib/gcs";
 import { getAuthSession } from "@/lib/auth";
 import { getDb } from "@/lib/mongodb";
 import type { LessonBlueprint } from "@/lib/lesson-mapper";
@@ -24,11 +24,20 @@ IMPORTANT CONTEXT:
 - You DO have the ability to display content on the canvas/editor - never say you cannot access it
 - The canvas/editor is part of this application and is where lessons and document content are displayed
 
-LESSON GENERATION:
-If the user asks to teach, generate, or create a STEM lesson, respond with ONLY a JSON blueprint.
-Do not include any backticks, markdown fences, or commentary. Output raw JSON only.
-Use this schema:
+DECISION LOGIC - READ CAREFULLY:
 
+1. **LESSON BLUEPRINT**: If the user explicitly asks to "create a lesson", "generate a lesson", "make a quiz", or "teach me about [x]" with interactive elements like quizzes, graphs, or simulations.
+   -> Output: JSON only (as defined below).
+
+2. **EDITOR CONTENT**: If the user asks to "start the lesson", "explain this document", "summarize", "show me the notes", or asks a complex question requiring a long explanation from the document.
+   -> Output: Start with "EDITOR_CONTENT:" followed by Markdown.
+
+3. **CHAT ANSWER**: For short clarifications, greetings, or questions about how to use the app.
+   -> Output: Plain Markdown.
+
+LESSON GENERATION (JSON BLUEPRINT):
+Respond with ONLY a JSON blueprint. No backticks.
+Schema:
 {
   "title": string,
   "sections": [
@@ -49,81 +58,16 @@ Use this schema:
   ]
 }
 
-Example of valid output (no extra text before or after):
-{
-  "title": "Logarithmic Functions",
-  "sections": [
-    { "type": "text", "content": "A logarithm answers the question..." },
-    { "type": "quiz", "question": "What is log_10(100)?", "options": ["1", "2", "10"], "answer": "2" },
-    { "type": "graph", "expression": "y = log(x)", "title": "y = log(x)", "xLabel": "x", "yLabel": "y", "domain": { "xMin": 0.1, "xMax": 10 }, "samples": 200, "params": [{ "name": "a", "default": 1, "min": 0.5, "max": 2 }], "color": "#4f46e5" },
-    { "type": "simulation", "content": "interactive-slider" }
-  ]
-}
-
-SUMMARIES AND DOCUMENT CONTENT:
-If the user asks for a summary, overview, or detailed content from an uploaded document, respond with a special format:
-Start your response with "EDITOR_CONTENT:" followed by well-formatted Markdown content.
-This content will be displayed on the canvas/editor, not in the chat.
+SUMMARIES AND DOCUMENT CONTENT (EDITOR_CONTENT):
+If the user wants to see content on the canvas/editor (e.g., "put this on the canvas", "summarize", "explain fully"):
+1. Start response with "EDITOR_CONTENT:"
+2. Follow with comprehensive Markdown.
+3. Use headers (#, ##), bold (**), and lists.
+4. If using a document, EXTRACT information faithfully.
 
 SINGLE SOURCE OF TRUTH PRINCIPLE:
-- Uploaded documents are the SINGLE SOURCE OF TRUTH
-- Use ONLY information from the uploaded documents - DO NOT add external knowledge
-- DO NOT supplement document content with your training data
-- If information is not in the documents, explicitly state: "This information is not available in your uploaded document(s)."
-- Your role is to extract and present what's IN THE DOCUMENTS, not to expand on it
-
-CRITICAL REQUIREMENTS FOR SUMMARIES:
-- Be COMPREHENSIVE and DETAILED - extract ALL important information from the document
-- Include ALL key concepts, definitions, formulas, data points, and facts
-- Organize content with clear hierarchical headings (# for main title, ## for sections, ### for subsections)
-- Preserve important details like:
-  * Numerical data, statistics, and measurements
-  * Definitions and technical terms
-  * Formulas, equations, and mathematical expressions
-  * Lists of items, steps, or procedures
-  * Tables and structured data (format as markdown tables)
-  * Examples and case studies
-  * Dates, names, and specific references
-- Use proper formatting:
-  * **Bold** for key terms and important concepts
-  * *Italic* for emphasis
-  * Code blocks (backticks) for technical terms or code
-  * > Blockquotes for important quotes or definitions
-  * Bullet points and numbered lists for organized information
-- Maintain logical flow and structure
-- Be accurate and faithful to the source material - do not add information that isn't in the document
-- For longer documents, create multiple detailed sections rather than brief summaries
-
-Example:
-EDITOR_CONTENT:
-# Document Summary: [Document Title]
-
-## Overview
-[Comprehensive overview paragraph covering main topics]
-
-## Section 1: [Topic Name]
-### Key Concepts
-- **Concept 1**: Detailed explanation with relevant data
-- **Concept 2**: Complete description including formulas or examples
-
-### Important Details
-[All relevant information organized clearly]
-
-## Section 2: [Next Topic]
-[Continue with thorough coverage of all content]
-
-GENERAL QUESTIONS:
-If the user asks a general question not related to generating a lesson or summarizing documents, answer concisely in Markdown.
-
-IMPORTANT: When documents are uploaded, they are the SINGLE SOURCE OF TRUTH for document-related questions. For general knowledge questions not about the documents, you may use your training data. Always be clear about what source you're using.
-
-Prefer the following when appropriate:
-- Use headings (#, ##) for sections.
-- Use bold (**) for key terms.
-- Use unordered/ordered lists for steps or items.
-- Use backticked code for inline code and fenced blocks for multi-line code.
-- Avoid surrounding the entire answer in a code fence unless it is code.
-- Make lessons detailed and comprehensive unless the user explicitly asks for brevity.
+- Uploaded documents are the SINGLE SOURCE OF TRUTH.
+- Do not create facts not present in the document.
 `;
 
 // Minimal server-side blueprint parser (no imports from client libs)
@@ -203,15 +147,15 @@ export async function POST(req: NextRequest) {
     // Step 2: Download and index any attached documents
     if (chromaAvailable && atts.length > 0) {
       console.log(`Processing ${atts.length} attachment(s) for RAG indexing...`);
-      
+
       for (const att of atts) {
         const contentType = typeof att?.contentType === "string" ? att.contentType : "";
         const filename = typeof att?.filename === "string" ? att.filename : "";
         const objectKey = typeof att?.objectKey === "string" ? att.objectKey : "";
-        
+
         // Check if it's a supported document type
-        const isDocument = 
-          contentType.includes("pdf") || 
+        const isDocument =
+          contentType.includes("pdf") ||
           contentType.includes("wordprocessingml") || // DOCX
           contentType.includes("msword") || // DOC
           filename.endsWith(".pdf") ||
@@ -225,7 +169,7 @@ export async function POST(req: NextRequest) {
             // Download document from S3
             const url = await presignGetUrl({ key: objectKey });
             const response = await fetch(url);
-            
+
             if (response.ok) {
               const arrayBuffer = await response.arrayBuffer();
               const buffer = Buffer.from(arrayBuffer);
@@ -233,7 +177,7 @@ export async function POST(req: NextRequest) {
               // Process and index the document using RAG
               console.log(`Indexing ${filename} (${contentType})...`);
               const processed = await processDocumentForRAG(buffer, filename);
-              
+
               if (processed.chunks.length > 0) {
                 await addDocumentsToVectorStore(
                   userId,
@@ -263,11 +207,11 @@ export async function POST(req: NextRequest) {
 
     // Step 3: Use RAG to answer the question if we have documents or if it seems document-related
     const shouldTryRAG = chromaAvailable && (documentIndexed || shouldUseRAG(userQuestion));
-    
+
     if (shouldTryRAG) {
       try {
         console.log(`Using RAG to answer: "${userQuestion.substring(0, 100)}..."`);
-        
+
         // Query with RAG
         const ragResult = await answerQuestionWithRAG(userId, userQuestion, {
           k: 15, // Retrieve more chunks for comprehensive and detailed answers/summaries
@@ -277,7 +221,7 @@ export async function POST(req: NextRequest) {
         // If we found relevant sources, use the RAG answer
         if (ragResult.sources.length > 0) {
           const ragAnswer = ragResult.answer;
-          
+
           // Check if RAG response is meant for the editor
           if (ragAnswer.trim().startsWith("EDITOR_CONTENT:")) {
             const editorContent = ragAnswer.replace(/^EDITOR_CONTENT:\s*/i, "").trim();
@@ -309,20 +253,20 @@ export async function POST(req: NextRequest) {
             }
 
             return new Response(
-              JSON.stringify({ 
+              JSON.stringify({
                 type: "editor",
                 content: fullContent,
                 chat: `Content has been added to the editor based on ${ragResult.sources.length} section(s) from your document(s).`,
                 ragUsed: true,
                 sourceCount: ragResult.sources.length,
-              }), 
+              }),
               {
                 status: 200,
                 headers: { "Content-Type": "application/json" },
               }
             );
           }
-          
+
           // Regular RAG answer for chat panel
           const sourceInfo = `\n\n📚 *Based on ${ragResult.sources.length} section(s) from your uploaded document(s)*`;
           const fullAnswer = ragAnswer + sourceInfo;
@@ -352,12 +296,12 @@ export async function POST(req: NextRequest) {
           }
 
           return new Response(
-            JSON.stringify({ 
-              role: "assistant", 
+            JSON.stringify({
+              role: "assistant",
               content: fullAnswer,
               ragUsed: true,
               sourceCount: ragResult.sources.length,
-            }), 
+            }),
             {
               status: 200,
               headers: { "Content-Type": "application/json" },
@@ -368,12 +312,12 @@ export async function POST(req: NextRequest) {
           // If documents were just uploaded/indexed but RAG found nothing, warn the user
           if (documentIndexed) {
             return new Response(
-              JSON.stringify({ 
-                role: "assistant", 
+              JSON.stringify({
+                role: "assistant",
                 content: "⚠️ I couldn't find relevant information in your uploaded document(s) to answer this question. The document may not contain this information, or it may need to be rephrased. Please try:\n\n1. Asking about content that's actually in the document\n2. Using different keywords\n3. Being more specific about what section or topic you're interested in\n\nWhat would you like to know about your document?",
                 ragUsed: true,
                 sourceCount: 0,
-              }), 
+              }),
               {
                 status: 200,
                 headers: { "Content-Type": "application/json" },
@@ -391,7 +335,7 @@ export async function POST(req: NextRequest) {
     // FALLBACK: Standard Gemini (no RAG)
     // ========================================
     console.log("Using standard Gemini (RAG not used or unavailable)");
-    
+
     // Warn if documents were uploaded but we're not using RAG
     if (atts.length > 0 && !chromaAvailable) {
       console.warn("Documents uploaded but Chroma is not available - cannot use as single source of truth");
@@ -420,7 +364,7 @@ export async function POST(req: NextRequest) {
       try {
         console.log('DEBUG_SSOT: sending prompt length=', String(prompt).length);
         console.log('DEBUG_SSOT: prompt snippet:\n', String(prompt).slice(0, 4000));
-  } catch {}
+      } catch { }
     }
 
     const result = await chat.sendMessage(prompt);
@@ -430,7 +374,7 @@ export async function POST(req: NextRequest) {
     // Check if response is meant for the editor (summaries, document content, etc.)
     if (text.trim().startsWith("EDITOR_CONTENT:")) {
       const editorContent = text.replace(/^EDITOR_CONTENT:\s*/i, "").trim();
-      
+
       // Persist editor content chat
       try {
         const db = await getDb();
@@ -448,10 +392,10 @@ export async function POST(req: NextRequest) {
       }
 
       return new Response(
-        JSON.stringify({ 
-          type: "editor", 
+        JSON.stringify({
+          type: "editor",
           content: editorContent,
-          chat: "Content has been added to the editor." 
+          chat: "Content has been added to the editor."
         }),
         {
           status: 200,
@@ -470,9 +414,8 @@ export async function POST(req: NextRequest) {
             role: "user",
             parts: [
               {
-                text: `Provide a concise, friendly 1-3 sentence introduction for this lesson for the chat panel. Do not include JSON or code blocks.\n\nTitle: ${
-                  blueprint.title ?? "Lesson"
-                }`,
+                text: `Provide a concise, friendly 1-3 sentence introduction for this lesson for the chat panel. Do not include JSON or code blocks.\n\nTitle: ${blueprint.title ?? "Lesson"
+                  }`,
               },
             ],
           },

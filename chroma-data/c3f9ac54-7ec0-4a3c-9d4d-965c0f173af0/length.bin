@@ -1,0 +1,2 @@
+6
+The following program adds three more names to the names.txt file created in the earlier program. #include<fstream> using namespace std; int main() { ofstream outdata; outdata.open("c:\\names.txt",ios::app); if(outdata.fail()){ cout<< "\nError opening names.txt"; } outdata<< "Berhanu Teka"<<endl; outdata<< "Zelalem Assefa"<<endl; outdata<< "Dagim Sheferaw"<<endl; outdata.close(); }//end mainhell

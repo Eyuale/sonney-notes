@@ -12,9 +12,8 @@
     "chroma:start": "node -e \"require('child_process').spawn(process.platform === 'win32' ? 'cmd' : 'sh', [process.platform === 'win32' ? '/c' : '-c', process.platform === 'win32' ? 'scripts\\\\start-chroma.bat' : 'bash scripts/start-chroma.sh'], {stdio: 'inherit'})\""
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.667.0",
-    "@aws-sdk/s3-request-presigner": "^3.667.0",
     "@floating-ui/react": "^0.27.16",
+    "@google-cloud/storage": "^7.18.0",
     "@google/generative-ai": "^0.24.1",
     "@huggingface/inference": "^4.10.0",
     "@langchain/community": "^0.3.57",
