@@ -1,14 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { S3Client, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { deleteFile } from "@/lib/gcs";
 import { getDb } from "@/lib/mongodb";
-
-const s3Client = new S3Client({
-  region: process.env.AWS_REGION_NAME!,
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID_SECRET!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-  },
-});
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,27 +13,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await getDb();
-
     const db = await getDb();
     const fileBlobs = db.collection("file_blobs");
     const userFiles = db.collection("user_files");
 
-    let deleteResult = null;
+    let deleteResult: any = null;
 
-    // If we have objectKey, it's a confirmed file - delete from both S3 and DB
+    // If we have objectKey, it's a confirmed file - delete from both GCS and DB
     if (objectKey) {
-      // Delete from S3
+      // Delete from GCS
       try {
-        await s3Client.send(
-          new DeleteObjectCommand({
-            Bucket: process.env.S3_BUCKET_NAME!,
-            Key: objectKey,
-          })
-        );
-      } catch (s3Error) {
-        console.error("S3 delete error:", s3Error);
-        // Continue with DB cleanup even if S3 delete fails
+        await deleteFile(objectKey);
+      } catch (gcsError) {
+        console.error("GCS delete error:", gcsError);
+        // Continue with DB cleanup even if GCS delete fails
       }
 
       // Delete from database
@@ -58,14 +43,9 @@ export async function POST(request: NextRequest) {
 
       if (existingFile) {
         try {
-          await s3Client.send(
-            new DeleteObjectCommand({
-              Bucket: process.env.S3_BUCKET_NAME!,
-              Key: existingFile.objectKey,
-            })
-          );
-        } catch (s3Error) {
-          console.error("S3 delete error:", s3Error);
+          await deleteFile(existingFile.objectKey);
+        } catch (gcsError) {
+          console.error("GCS delete error:", gcsError);
         }
 
         deleteResult = await fileBlobs.deleteOne({ _id: existingFile._id });

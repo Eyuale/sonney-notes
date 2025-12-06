@@ -1,7 +1,6 @@
-// API endpoint for indexing PDF documents into vector store
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthSession } from '@/lib/auth';
-import { presignGetUrl } from '@/lib/s3';
+import { presignGetUrl } from '@/lib/gcs';
 import { processDocumentForRAG } from '@/lib/rag-document-processor';
 import { addDocumentsToVectorStore, isChromaAvailable } from '@/lib/rag-vector-store';
 import { getDb } from '@/lib/mongodb';
@@ -29,7 +28,7 @@ export async function POST(req: NextRequest) {
     const chromaAvailable = await isChromaAvailable();
     if (!chromaAvailable) {
       return NextResponse.json(
-        { 
+        {
           error: 'Vector store not available',
           message: 'Please ensure Chroma DB is running on http://localhost:8000'
         },
@@ -51,7 +50,7 @@ export async function POST(req: NextRequest) {
     // Download PDF from S3
     const url = await presignGetUrl({ key: objectKey });
     const response = await fetch(url);
-    
+
     if (!response.ok) {
       return NextResponse.json(
         { error: 'Failed to download PDF from storage' },
@@ -138,7 +137,7 @@ export async function GET() {
 
     const db = await getDb();
     const indexedDocs = db.collection('indexed_documents');
-    
+
     const documents = await indexedDocs
       .find({ userId })
       .sort({ indexedAt: -1 })
@@ -162,4 +161,3 @@ export async function GET() {
     );
   }
 }
-

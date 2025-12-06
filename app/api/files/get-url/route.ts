@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { getAuthSession } from "@/lib/auth";
-import { presignGetUrl } from "@/lib/s3";
+import { presignGetUrl } from "@/lib/gcs";
 
 // GET /api/files/get-url?key=<s3Key>
 export async function GET(req: NextRequest) {

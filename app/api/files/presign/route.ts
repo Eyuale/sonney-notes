@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { getAuthSession } from "@/lib/auth";
 import { getDb } from "@/lib/mongodb";
-import { presignPutUrl, S3_ENV } from "@/lib/s3";
+import { presignPutUrl, GCS_ENV } from "@/lib/gcs";
 
 // POST /api/files/presign
 // Body: { filename, contentType, size, sha256Hex }
@@ -60,8 +60,8 @@ export async function POST(req: NextRequest) {
         JSON.stringify({
           alreadyExists: true,
           key: existing.objectKey,
-          bucket: S3_ENV.BUCKET,
-          region: S3_ENV.REGION,
+          bucket: GCS_ENV.BUCKET,
+          region: "global",
         }),
         { status: 200 }
       );
@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
     const uploadUrl = await presignPutUrl({ key: objectKey, contentType });
 
     return new Response(
-      JSON.stringify({ alreadyExists: false, uploadUrl, key: objectKey, bucket: S3_ENV.BUCKET, region: S3_ENV.REGION }),
+      JSON.stringify({ alreadyExists: false, uploadUrl, key: objectKey, bucket: GCS_ENV.BUCKET, region: "global" }),
       { status: 200 }
     );
   } catch (err: unknown) {
