@@ -1,15 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { searchDocuments } from "@/lib/rag-vector-store";
 
 const apiKey = process.env.GOOGLE_API_KEY || "";
 const genAI = new GoogleGenerativeAI(apiKey);
 
 export async function POST(req: NextRequest) {
     try {
-        const { topic, duration, level, additionalContext } = await req.json();
+        const { topic, duration, level, additionalContext, useContext } = await req.json();
 
         if (!topic) {
             return NextResponse.json({ error: "Topic is required" }, { status: 400 });
+        }
+
+        // Retrieve RAG context if requested
+        let ragContext = "";
+        if (useContext) {
+            try {
+                // Search for documents relevant to the topic
+                const docs = await searchDocuments("test-user-id", topic, { k: 5 });
+                if (docs.length > 0) {
+                    ragContext = docs.map((d, i) => `Source ${i + 1}:\n${d.pageContent}`).join("\n\n");
+                }
+            } catch (err) {
+                console.error("Failed to retrieve RAG context:", err);
+                // Continue without context if retrieval fails
+            }
         }
 
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
@@ -19,6 +35,14 @@ export async function POST(req: NextRequest) {
             Target Audience Level: ${level || 'Beginner'}.
             Total Duration Goal: ${duration || '1 week'}.
             Context/Notes: ${additionalContext || 'None'}.
+
+            ${ragContext ? `
+            IMPORTANT: The user has provided the following context from their uploaded notes. 
+            Prioritize using this material to structure the roadmap and suggest resources.
+            
+            USER NOTES CONTEXT:
+            ${ragContext}
+            ` : ''}
 
             Return strictly a JSON object with the following structure:
             {

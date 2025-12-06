@@ -8,6 +8,7 @@ export const CreatePlanModal = ({ onCreated, buttonLabel = "New Plan" }: { onCre
     const [topic, setTopic] = useState("");
     const [duration, setDuration] = useState("1 week");
     const [level, setLevel] = useState("Beginner");
+    const [useContext, setUseContext] = useState(false);
     const [loading, setLoading] = useState(false);
     const [generatedPlan, setGeneratedPlan] = useState<any>(null);
 
@@ -15,7 +16,7 @@ export const CreatePlanModal = ({ onCreated, buttonLabel = "New Plan" }: { onCre
         setLoading(true);
         const res = await fetch('/api/ai/study-plan', {
             method: 'POST',
-            body: JSON.stringify({ topic, duration, level })
+            body: JSON.stringify({ topic, duration, level, useContext })
         });
         const data = await res.json();
         if (data.error) {
@@ -100,6 +101,18 @@ export const CreatePlanModal = ({ onCreated, buttonLabel = "New Plan" }: { onCre
                                             <option>Advanced</option>
                                         </select>
                                     </div>
+                                </div>
+                                <div className="flex items-center gap-2 mb-4">
+                                    <input
+                                        type="checkbox"
+                                        id="useContext"
+                                        checked={useContext}
+                                        onChange={(e) => setUseContext(e.target.checked)}
+                                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                    />
+                                    <label htmlFor="useContext" className="text-sm text-gray-700 font-medium cursor-pointer">
+                                        Include context from my notes
+                                    </label>
                                 </div>
                             </div>
                             <div className="flex justify-end gap-2">
